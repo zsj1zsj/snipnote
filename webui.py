@@ -1262,7 +1262,7 @@ def make_handler(app: App):
                   <h2>交互批注</h2>
                   <p class='meta'>在正文里先选中文本，再右键。可直接选择“高亮选中”或“写批注”。</p>
                   <p class='meta'>提示：批注会保存到下方批注记录，并自动在正文中高亮对应片段。</p>
-                  <p class='meta'>快捷键：<code>H</code> 高亮，<code>M</code> 批注，<code>J/K</code> 切换高亮，<code>Enter</code> 编辑，<code>Delete</code> 删除，<code>Z</code> 返回首页，<code>⌘/Ctrl+S</code> 保存，<code>⌘/Ctrl+F</code> 搜索。</p>
+                  <p class='meta'>快捷键：<code>H</code> 高亮，<code>M</code> 批注，<code>J/K</code> 切换高亮，<code>Enter</code> 编辑，<code>Delete</code> 删除，<code>Z</code> 返回全部摘录，<code>⌘/Ctrl+S</code> 保存，<code>⌘/Ctrl+F</code> 搜索。</p>
                   <p><input id='quick-find-input' placeholder='搜索当前文章高亮/笔记' /></p>
                 </div>
                 <form id='annotate-form' method='post' action='/highlight/annotate' style='display:none;'>
@@ -1504,7 +1504,7 @@ def make_handler(app: App):
                     }}
                     if (lower === 'z') {{
                       e.preventDefault();
-                      window.location.href = '/';
+                      window.location.href = '/highlights';
                       return;
                     }}
                     if (lower === 'k') {{
