@@ -1146,20 +1146,34 @@ def fetch_recent(conn: sqlite3.Connection, limit: int = 20) -> list[sqlite3.Row]
     ).fetchall()
 
 
-def fetch_recent_filtered(conn: sqlite3.Connection, keyword: str, limit: int = 100) -> list[sqlite3.Row]:
+def fetch_recent_filtered(conn: sqlite3.Connection, keyword: str, tag: str, limit: int = 100) -> list[sqlite3.Row]:
     kw = keyword.strip()
-    if not kw:
+    tg = tag.strip()
+    if not kw and not tg:
         return fetch_recent(conn, limit)
-    like = f"%{kw}%"
+
+    where_parts: list[str] = []
+    params: list[str | int] = []
+    if kw:
+        like = f"%{kw}%"
+        where_parts.append("(text LIKE ? OR source LIKE ? OR author LIKE ? OR tags LIKE ?)")
+        params.extend([like, like, like, like])
+    if tg:
+        tag_like = f"%{tg}%"
+        where_parts.append("tags LIKE ?")
+        params.append(tag_like)
+    where_sql = " AND ".join(where_parts) if where_parts else "1=1"
+    params.append(limit)
+
     return conn.execute(
-        """
+        f"""
         SELECT id, text, source, author, tags, repetitions, next_review
         FROM highlights
-        WHERE text LIKE ? OR source LIKE ? OR author LIKE ? OR tags LIKE ?
+        WHERE {where_sql}
         ORDER BY id DESC
         LIMIT ?
         """,
-        (like, like, like, like, limit),
+        tuple(params),
     ).fetchall()
 
 
@@ -1178,8 +1192,93 @@ def fetch_annotations(conn: sqlite3.Connection, highlight_id: int) -> list[sqlit
 def row_meta(row: sqlite3.Row) -> str:
     src = f"{row['author']} - {row['source']}".strip(" -")
     tag_value = row["tags"] if "tags" in row.keys() else ""
-    tag = f"<span class='tag'>{html.escape(tag_value)}</span>" if tag_value else ""
+    tag = render_tags_html(tag_value)
     return f"{html.escape(src) if src else 'Unknown'}{tag}"
+
+
+def normalize_tags(raw_tags: str) -> str:
+    raw = (raw_tags or "").strip()
+    if not raw:
+        return ""
+    parts = re.split(r"[,，;；\n]+", raw)
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for part in parts:
+        t = part.strip()
+        if not t:
+            continue
+        key = t.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        ordered.append(t)
+    return ", ".join(ordered)
+
+
+def merge_tags(existing_tags: str, incoming_tags: str) -> str:
+    existing = normalize_tags(existing_tags)
+    incoming = normalize_tags(incoming_tags)
+    if not existing:
+        return incoming
+    if not incoming:
+        return existing
+    return normalize_tags(f"{existing}, {incoming}")
+
+
+def render_tags_html(raw_tags: str) -> str:
+    normalized = normalize_tags(raw_tags)
+    if not normalized:
+        return ""
+    tags = [x.strip() for x in normalized.split(",") if x.strip()]
+    return "".join(f"<span class='tag'>{html.escape(t)}</span>" for t in tags)
+
+
+def strip_leading_duplicate_title(md_text: str, source_title: str) -> str:
+    lines = (md_text or "").splitlines()
+    source = (source_title or "").strip()
+    if not lines or not source:
+        return md_text
+
+    def canon(s: str) -> str:
+        s = (s or "").strip().lower()
+        s = re.sub(r"^#{1,6}\s*", "", s)
+        s = re.sub(r"\s+", "", s)
+        return s
+
+    source_c = canon(source)
+    i = 0
+    removed_any = False
+    # Only trim the very beginning block to avoid removing legitimate in-body headings.
+    while i < len(lines) and i < 10:
+        line = lines[i].strip()
+        if not line:
+            i += 1
+            continue
+        heading_m = re.match(r"^#{1,6}\s+(.+)$", line)
+        candidate = heading_m.group(1).strip() if heading_m else line
+        if canon(candidate) == source_c:
+            removed_any = True
+            i += 1
+            continue
+        if removed_any and line.startswith("来源:"):
+            i += 1
+            continue
+        break
+
+    if i <= 0:
+        return md_text
+    return "\n".join(lines[i:]).lstrip("\n")
+
+
+def card_title_label(row: sqlite3.Row) -> str:
+    source = row["source"] if "source" in row.keys() else ""
+    title = (source or "").strip() or "未命名摘录"
+    date_text = ""
+    if "next_review" in row.keys() and row["next_review"]:
+        date_text = str(row["next_review"]).strip()
+    elif "created_at" in row.keys() and row["created_at"]:
+        date_text = str(row["created_at"]).strip()[:10]
+    return f"#{row['id']} {title}{(' ' + date_text) if date_text else ''}"
 
 
 def delete_button(highlight_id: int, return_to: str) -> str:
@@ -1232,6 +1331,8 @@ def make_handler(app: App):
                 return self.handle_delete_annotation()
             if path == "/highlight/delete":
                 return self.handle_delete_highlight()
+            if path == "/highlight/add-tag":
+                return self.handle_add_tag_submit()
             if path == "/review/score":
                 return self.handle_score_submit()
             self.respond(HTTPStatus.NOT_FOUND, page_layout("404", "<h1>Not found</h1>"))
@@ -1265,7 +1366,8 @@ def make_handler(app: App):
                 due = fetch_due(conn, 6, sort_order=sort, sort_by_time=True)
             cards = []
             for row in due:
-                title_label = f"#{row['id']}（复习 {row['repetitions']} 次）"
+                title_label = card_title_label(row)
+                body_md = strip_leading_duplicate_title(row["text"], row["source"] if "source" in row.keys() else "")
                 actions = (
                     "<div class='row-actions'>"
                     f"<a href='/highlight?id={row['id']}'>查看并批注</a>"
@@ -1274,7 +1376,7 @@ def make_handler(app: App):
                 )
                 cards.append(
                     f"<div class='card'><h2>{detail_title_link(row['id'], title_label)}</h2>"
-                    f"<div class='md'>{render_markdown(row['text'])}</div><p class='meta'>{row_meta(row)}</p>{actions}</div>"
+                    f"<div class='md'>{render_markdown(body_md)}</div><p class='meta'>{row_meta(row)}</p>{actions}</div>"
                 )
             due_html = "".join(cards) if cards else "<div class='card'><p>今天没有到期摘录。</p></div>"
             sort_form = (
@@ -1309,7 +1411,7 @@ def make_handler(app: App):
                 <p><input name="source" placeholder="来源（书名/文章）" /></p>
                 <p><input name="author" placeholder="作者" /></p>
                 <p><input name="location" placeholder="位置（页码/链接）" /></p>
-                <p><input name="tags" placeholder="标签（逗号分隔）" /></p>
+                <p><input name="tags" placeholder="标签（逗号/分号分隔）" /></p>
               </div>
               <button type="submit">保存</button>
             </form>
@@ -1325,7 +1427,7 @@ def make_handler(app: App):
               <p><input id="add-link-url" name="url" placeholder="https://example.com/article" required autofocus /></p>
               <div class="grid">
                 <p><input name="author" placeholder="作者（可选，留空自动）" /></p>
-                <p><input name="tags" placeholder="标签（逗号分隔，可选）" /></p>
+                <p><input name="tags" placeholder="标签（逗号/分号分隔，可选）" /></p>
               </div>
               <button type="submit">抓取并保存</button>
             </form>
@@ -1377,7 +1479,7 @@ def make_handler(app: App):
                         form.get("source", ""),
                         form.get("author", ""),
                         form.get("location", ""),
-                        form.get("tags", ""),
+                        normalize_tags(form.get("tags", "")),
                         now,
                         today_iso(),
                     ),
@@ -1434,7 +1536,7 @@ def make_handler(app: App):
             parsed = urlparse(url)
             source = title
             author = form.get("author", "").strip()
-            tags = form.get("tags", "").strip()
+            tags = normalize_tags(form.get("tags", ""))
             now = dt.datetime.now().isoformat(timespec="seconds")
             with app.conn() as conn:
                 conn.execute(
@@ -1458,21 +1560,31 @@ def make_handler(app: App):
         def handle_highlights(self):
             parsed = urlparse(self.path)
             keyword = parse_qs(parsed.query).get("q", [""])[0].strip()
+            tag_filter = parse_qs(parsed.query).get("tag", [""])[0].strip()
             with app.conn() as conn:
-                rows = fetch_recent_filtered(conn, keyword, 100)
+                rows = fetch_recent_filtered(conn, keyword, tag_filter, 100)
+            has_filter = bool(keyword or tag_filter)
+            result_meta = (
+                f"<p class='meta'>一共搜到 <strong>{len(rows)}</strong> 个结果。</p>"
+                if has_filter
+                else f"<p class='meta'>当前共显示 <strong>{len(rows)}</strong> 条摘录。</p>"
+            )
             if not rows:
                 body = (
                     "<h1>全部摘录</h1>"
                     "<form method='get' action='/highlights' class='inline-form'>"
                     f"<input name='q' placeholder='搜索关键词并高亮' value='{html.escape(keyword)}' />"
+                    f"<input name='tag' placeholder='按标签过滤（如 Java）' value='{html.escape(tag_filter)}' />"
                     "<button type='submit'>搜索</button></form>"
+                    f"{result_meta}"
                     "<div class='card'>暂无数据。</div>"
                 )
                 self.respond(HTTPStatus.OK, page_layout("全部摘录", body))
                 return
             blocks = []
             for row in rows:
-                title_label = f"#{row['id']}（下次 {row['next_review']}）"
+                title_label = card_title_label(row)
+                body_md = strip_leading_duplicate_title(row["text"], row["source"] if "source" in row.keys() else "")
                 actions = (
                     "<div class='row-actions'>"
                     f"<a href='/highlight?id={row['id']}'>查看并批注</a>"
@@ -1481,7 +1593,7 @@ def make_handler(app: App):
                 )
                 blocks.append(
                     f"<div class='card'><h2>{detail_title_link(row['id'], title_label)}</h2>"
-                    f"<div class='md'>{render_markdown(row['text'], keyword)}</div>"
+                    f"<div class='md'>{render_markdown(body_md, keyword)}</div>"
                     f"<p class='meta'>{row_meta(row)}</p>"
                     f"{actions}</div>"
                 )
@@ -1489,7 +1601,9 @@ def make_handler(app: App):
                 "<h1>全部摘录</h1>"
                 "<form method='get' action='/highlights' class='inline-form'>"
                 f"<input name='q' placeholder='搜索关键词并高亮' value='{html.escape(keyword)}' />"
+                f"<input name='tag' placeholder='按标签过滤（如 Java）' value='{html.escape(tag_filter)}' />"
                 "<button type='submit'>搜索</button></form>"
+                f"{result_meta}"
                 "<p class='meta'>支持高亮语法：在文本里使用 <code>==需要高亮的内容==</code>。</p>"
                 + "".join(blocks)
             )
@@ -1520,7 +1634,8 @@ def make_handler(app: App):
                 annotations = fetch_annotations(conn, highlight_id)
 
             selected_quotes = [a["selected_text"] for a in annotations if a["selected_text"]]
-            rendered = render_markdown(row["text"], selected_quotes=selected_quotes)
+            detail_md = strip_leading_duplicate_title(row["text"], row["source"] or "")
+            rendered = render_markdown(detail_md, selected_quotes=selected_quotes)
             ann_blocks = []
             ann_index: dict[str, dict[str, str | int]] = {}
             for ann in annotations:
@@ -1910,6 +2025,11 @@ def make_handler(app: App):
                 "<div class='card'>"
                 f"<h2>{html.escape(row['source'] or 'Untitled')}</h2>"
                 f"<p class='meta'>{row_meta(row)} | 下次复习 {html.escape(row['next_review'])}</p>"
+                "<form method='post' action='/highlight/add-tag' class='inline-form'>"
+                f"<input type='hidden' name='id' value='{row['id']}' />"
+                "<input name='tags' placeholder='追加标签（逗号/分号分隔）' />"
+                "<button type='submit'>追加标签</button>"
+                "</form>"
                 f"{location_html}"
                 f"<div class='md' id='article-content'>{rendered}</div>"
                 f"<div class='row-actions'>{delete_button(row['id'], '/highlights')}</div>"
@@ -1994,6 +2114,30 @@ def make_handler(app: App):
                 conn.commit()
             self.redirect(return_to)
 
+        def handle_add_tag_submit(self):
+            form = self.read_form()
+            try:
+                highlight_id = int(form.get("id", "0"))
+            except ValueError:
+                highlight_id = 0
+            incoming_tags = form.get("tags", "")
+            if highlight_id <= 0:
+                self.respond(HTTPStatus.BAD_REQUEST, page_layout("错误", "<h1>参数错误</h1>"))
+                return
+            if not incoming_tags.strip():
+                self.redirect(f"/highlight?id={highlight_id}")
+                return
+
+            with app.conn() as conn:
+                row = conn.execute("SELECT tags FROM highlights WHERE id = ?", (highlight_id,)).fetchone()
+                if row is None:
+                    self.respond(HTTPStatus.NOT_FOUND, page_layout("错误", "<h1>摘录不存在</h1>"))
+                    return
+                merged = merge_tags(row["tags"] or "", incoming_tags)
+                conn.execute("UPDATE highlights SET tags = ? WHERE id = ?", (merged, highlight_id))
+                conn.commit()
+            self.redirect(f"/highlight?id={highlight_id}")
+
         def handle_review(self):
             with app.conn() as conn:
                 rows = fetch_due(conn, 1)
@@ -2003,7 +2147,8 @@ def make_handler(app: App):
                 self.respond(HTTPStatus.OK, page_layout("复习", body))
                 return
             row = rows[0]
-            title_label = f"#{row['id']}（当前间隔 {row['interval_days']} 天）"
+            title_label = card_title_label(row)
+            body_md = strip_leading_duplicate_title(row["text"], row["source"] if "source" in row.keys() else "")
             buttons = "".join(
                 f"<button name='quality' value='{q}' type='submit'>{q}</button>" for q in range(6)
             )
@@ -2011,7 +2156,7 @@ def make_handler(app: App):
                 f"<h1>复习 <span class='tag'>剩余 {due_count}</span></h1>"
                 f"<div class='card'>"
                 f"<h2>{detail_title_link(row['id'], title_label)}</h2>"
-                f"<div class='md'>{render_markdown(row['text'])}</div>"
+                f"<div class='md'>{render_markdown(body_md)}</div>"
                 f"<p class='meta'>{row_meta(row)}</p>"
                 f"<div class='row-actions'><a href='/highlight?id={row['id']}'>查看并批注</a>{delete_button(row['id'], '/review')}</div>"
                 f"<form method='post' action='/review/score'>"
@@ -2067,20 +2212,22 @@ def make_handler(app: App):
             with app.conn() as conn:
                 due = fetch_due(conn, 10)
                 random_rows = conn.execute(
-                    "SELECT id, text, source, author, tags FROM highlights ORDER BY RANDOM() LIMIT 5"
+                    "SELECT id, text, source, author, tags, next_review, created_at FROM highlights ORDER BY RANDOM() LIMIT 5"
                 ).fetchall()
             due_blocks = []
             for r in due:
-                title_label = f"#{r['id']}"
+                title_label = card_title_label(r)
+                body_md = strip_leading_duplicate_title(r["text"], r["source"] if "source" in r.keys() else "")
                 due_blocks.append(
-                    f"<div class='card'><h2>{detail_title_link(r['id'], title_label)}</h2><div class='md'>{render_markdown(r['text'])}</div><p class='meta'>{row_meta(r)}</p><div class='row-actions'><a href='/highlight?id={r['id']}'>查看并批注</a>{delete_button(r['id'], '/daily')}</div></div>"
+                    f"<div class='card'><h2>{detail_title_link(r['id'], title_label)}</h2><div class='md'>{render_markdown(body_md)}</div><p class='meta'>{row_meta(r)}</p><div class='row-actions'><a href='/highlight?id={r['id']}'>查看并批注</a>{delete_button(r['id'], '/daily')}</div></div>"
                 )
             due_html = "".join(due_blocks) or "<div class='card'><p>今天没有到期摘录。</p></div>"
             random_blocks = []
             for r in random_rows:
-                title_label = f"#{r['id']}"
+                title_label = card_title_label(r)
+                body_md = strip_leading_duplicate_title(r["text"], r["source"] if "source" in r.keys() else "")
                 random_blocks.append(
-                    f"<div class='card'><h2>{detail_title_link(r['id'], title_label)}</h2><div class='md'>{render_markdown(r['text'])}</div><p class='meta'>{row_meta(r)}</p><div class='row-actions'><a href='/highlight?id={r['id']}'>查看并批注</a>{delete_button(r['id'], '/daily')}</div></div>"
+                    f"<div class='card'><h2>{detail_title_link(r['id'], title_label)}</h2><div class='md'>{render_markdown(body_md)}</div><p class='meta'>{row_meta(r)}</p><div class='row-actions'><a href='/highlight?id={r['id']}'>查看并批注</a>{delete_button(r['id'], '/daily')}</div></div>"
                 )
             random_html = "".join(random_blocks) or "<div class='card'><p>暂无随机摘录。</p></div>"
             body = (
