@@ -1139,6 +1139,46 @@ def page_layout(title: str, body: str) -> str:
             sessionStorage.setItem(HIGHLIGHTS_STATE_KEY, JSON.stringify(state));
           }} catch (err) {{}}
         }});
+
+        document.addEventListener('submit', function (e) {{
+          var form = e.target;
+          if (!form || !form.matches || !form.matches("form[action='/highlight/delete']")) return;
+          try {{
+            var card = form.closest('.card[data-highlight-id]');
+            var clickedId = card ? card.getAttribute('data-highlight-id') : '';
+            var clickedTop = card ? Math.round(card.getBoundingClientRect().top) : 100;
+            var prevId = '';
+            var nextId = '';
+            if (card) {{
+              var prev = card.previousElementSibling;
+              var next = card.nextElementSibling;
+              while (prev && !prev.matches('.card[data-highlight-id]')) prev = prev.previousElementSibling;
+              while (next && !next.matches('.card[data-highlight-id]')) next = next.nextElementSibling;
+              prevId = prev ? prev.getAttribute('data-highlight-id') : '';
+              nextId = next ? next.getAttribute('data-highlight-id') : '';
+            }}
+            var anchorId = '';
+            var cards = document.querySelectorAll('.card[data-highlight-id]');
+            for (var i = 0; i < cards.length; i++) {{
+              var r = cards[i].getBoundingClientRect();
+              if (r.bottom > 0 && r.top < window.innerHeight) {{
+                anchorId = cards[i].getAttribute('data-highlight-id') || '';
+                break;
+              }}
+            }}
+            var state = {{
+              url: window.location.pathname + window.location.search,
+              y: String(window.scrollY || window.pageYOffset || 0),
+              clickedId: clickedId,
+              prevId: prevId,
+              nextId: nextId,
+              anchorId: anchorId,
+              clickedTop: String(clickedTop)
+            }};
+            sessionStorage.setItem(HIGHLIGHTS_STATE_KEY, JSON.stringify(state));
+            sessionStorage.setItem(HIGHLIGHTS_RESTORE_KEY, '1');
+          }} catch (err) {{}}
+        }});
       }}
 
       var containers = document.querySelectorAll('.md');
