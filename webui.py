@@ -984,6 +984,8 @@ def page_layout(title: str, body: str) -> str:
   <script>
     (function () {{
       var globalShortcuts = {global_shortcuts_json};
+      var HIGHLIGHTS_STATE_KEY = 'highlights_list_state_v1';
+      var HIGHLIGHTS_RESTORE_KEY = 'highlights_list_restore_v1';
       if (window.hljs) {{
         document.querySelectorAll('pre code').forEach(function (el) {{
           window.hljs.highlightElement(el);
@@ -1052,6 +1054,92 @@ def page_layout(title: str, body: str) -> str:
           window.location.href = '/add-link';
         }}
       }});
+
+      if (window.location.pathname === '/highlights') {{
+        try {{
+          var restore = sessionStorage.getItem(HIGHLIGHTS_RESTORE_KEY);
+          if (restore === '1') {{
+            sessionStorage.removeItem(HIGHLIGHTS_RESTORE_KEY);
+            var rawState = sessionStorage.getItem(HIGHLIGHTS_STATE_KEY);
+            if (rawState) {{
+              var state = JSON.parse(rawState);
+              var currentUrl = window.location.pathname + window.location.search;
+              if (state && state.url === currentUrl) {{
+                var targetId = null;
+                var candidates = [state.nextId, state.prevId, state.clickedId, state.anchorId];
+                for (var ci = 0; ci < candidates.length; ci++) {{
+                  var cid = candidates[ci];
+                  if (!cid) continue;
+                  var probe = document.querySelector('.card[data-highlight-id="' + cid + '"]');
+                  if (probe) {{
+                    targetId = cid;
+                    break;
+                  }}
+                }}
+                if (targetId) {{
+                  var targetEl = document.querySelector('.card[data-highlight-id="' + targetId + '"]');
+                  var desiredTop = parseInt(state.clickedTop, 10);
+                  if (isNaN(desiredTop)) desiredTop = 100;
+                  if (targetEl) {{
+                    var delta = targetEl.getBoundingClientRect().top - desiredTop;
+                    window.scrollBy(0, delta);
+                  }}
+                }} else {{
+                  var y = parseInt(state.y, 10);
+                  if (!isNaN(y)) {{
+                    window.scrollTo(0, y);
+                  }}
+                }}
+              }}
+            }}
+          }}
+        }} catch (e) {{}}
+
+        document.addEventListener('click', function (e) {{
+          if (e.defaultPrevented) return;
+          if (e.button !== 0) return;
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          var target = e.target;
+          var link = target && target.closest ? target.closest('a[href]') : null;
+          if (!link) return;
+          var href = link.getAttribute('href') || '';
+          if (!href.startsWith('/highlight?id=')) return;
+          try {{
+            var card = link.closest('.card[data-highlight-id]');
+            var clickedId = card ? card.getAttribute('data-highlight-id') : '';
+            var clickedTop = card ? Math.round(card.getBoundingClientRect().top) : 100;
+            var prevId = '';
+            var nextId = '';
+            if (card) {{
+              var prev = card.previousElementSibling;
+              var next = card.nextElementSibling;
+              while (prev && !prev.matches('.card[data-highlight-id]')) prev = prev.previousElementSibling;
+              while (next && !next.matches('.card[data-highlight-id]')) next = next.nextElementSibling;
+              prevId = prev ? prev.getAttribute('data-highlight-id') : '';
+              nextId = next ? next.getAttribute('data-highlight-id') : '';
+            }}
+            var anchorId = '';
+            var cards = document.querySelectorAll('.card[data-highlight-id]');
+            for (var i = 0; i < cards.length; i++) {{
+              var r = cards[i].getBoundingClientRect();
+              if (r.bottom > 0 && r.top < window.innerHeight) {{
+                anchorId = cards[i].getAttribute('data-highlight-id') || '';
+                break;
+              }}
+            }}
+            var state = {{
+              url: window.location.pathname + window.location.search,
+              y: String(window.scrollY || window.pageYOffset || 0),
+              clickedId: clickedId,
+              prevId: prevId,
+              nextId: nextId,
+              anchorId: anchorId,
+              clickedTop: String(clickedTop)
+            }};
+            sessionStorage.setItem(HIGHLIGHTS_STATE_KEY, JSON.stringify(state));
+          }} catch (err) {{}}
+        }});
+      }}
 
       var containers = document.querySelectorAll('.md');
       containers.forEach(function (container) {{
@@ -1732,7 +1820,7 @@ def make_handler(app: App):
                     "</div>"
                 )
                 blocks.append(
-                    f"<div class='card'><h2>{detail_title_link(row['id'], title_label)}</h2>"
+                    f"<div class='card' data-highlight-id='{row['id']}'><h2>{detail_title_link(row['id'], title_label)}</h2>"
                     f"<div class='md'>{preview_html}</div>"
                     f"<p class='meta'>{row_meta(row)}</p>"
                     f"{actions}</div>"
@@ -1948,6 +2036,8 @@ def make_handler(app: App):
                   var noteModal = document.getElementById('note-modal');
                   var noteTextarea = document.getElementById('note-textarea');
                   var quickFindInput = document.getElementById('quick-find-input');
+                  var highlightsStateKey = 'highlights_list_state_v1';
+                  var highlightsRestoreKey = 'highlights_list_restore_v1';
                   var form = document.getElementById('annotate-form');
                   var deleteForm = document.getElementById('delete-annotation-form');
                   var selectedInput = document.getElementById('selected-text-input');
@@ -2117,6 +2207,22 @@ def make_handler(app: App):
                     }}
                   }}
 
+                  function goBackToHighlights() {{
+                    var fallback = '/highlights';
+                    try {{
+                      var raw = sessionStorage.getItem(highlightsStateKey);
+                      if (raw) {{
+                        var state = JSON.parse(raw);
+                        if (state && typeof state.url === 'string' && state.url.indexOf('/highlights') === 0) {{
+                          sessionStorage.setItem(highlightsRestoreKey, '1');
+                          window.location.href = state.url;
+                          return;
+                        }}
+                      }}
+                    }} catch (e) {{}}
+                    window.location.href = fallback;
+                  }}
+
                   try {{
                     var saved = sessionStorage.getItem(scrollKey);
                     if (saved !== null) {{
@@ -2202,7 +2308,7 @@ def make_handler(app: App):
                     }}
                     if (matchShortcut(e, detailShortcuts.back_to_highlights || [])) {{
                       e.preventDefault();
-                      window.location.href = '/highlights';
+                      goBackToHighlights();
                       return;
                     }}
                     if (matchShortcut(e, detailShortcuts.prev_mark || [])) {{
