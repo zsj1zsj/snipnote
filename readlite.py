@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS highlights (
     created_at TEXT NOT NULL,
     last_reviewed TEXT,
     next_review TEXT NOT NULL,
+    favorite INTEGER NOT NULL DEFAULT 0,
+    is_read INTEGER NOT NULL DEFAULT 0,
     repetitions INTEGER NOT NULL DEFAULT 0,
     interval_days INTEGER NOT NULL DEFAULT 0,
     efactor REAL NOT NULL DEFAULT 2.5
@@ -53,6 +55,13 @@ def connect(db_path: Path) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA_SQL)
+    # Backward-compatible migration for existing databases.
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(highlights)").fetchall()}
+    if "favorite" not in cols:
+        conn.execute("ALTER TABLE highlights ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0")
+    if "is_read" not in cols:
+        conn.execute("ALTER TABLE highlights ADD COLUMN is_read INTEGER NOT NULL DEFAULT 0")
+    conn.commit()
     return conn
 
 

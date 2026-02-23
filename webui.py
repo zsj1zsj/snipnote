@@ -976,6 +976,7 @@ def page_layout(title: str, body: str) -> str:
       <a href="/add">添加摘录</a>
       <a href="/add-link" title="快捷键 {html.escape(add_link_hint, quote=True)}">添加链接</a>
       <a href="/highlights">全部摘录</a>
+      <a href="/favorites">Favorites</a>
     </div>
     {body}
   </div>
@@ -1124,7 +1125,7 @@ def fetch_due(
         order_clause = "next_review, id"
     return conn.execute(
         f"""
-        SELECT id, text, source, author, tags, repetitions, next_review, interval_days, efactor, created_at
+        SELECT id, text, source, author, tags, favorite, is_read, repetitions, next_review, interval_days, efactor, created_at
         FROM highlights
         WHERE date(next_review) <= date(?)
         ORDER BY {order_clause}
@@ -1137,7 +1138,7 @@ def fetch_due(
 def fetch_recent(conn: sqlite3.Connection, limit: int = 20) -> list[sqlite3.Row]:
     return conn.execute(
         """
-        SELECT id, text, source, author, tags, repetitions, next_review
+        SELECT id, text, source, author, tags, favorite, is_read, repetitions, next_review
         FROM highlights
         ORDER BY id DESC
         LIMIT ?
@@ -1146,13 +1147,21 @@ def fetch_recent(conn: sqlite3.Connection, limit: int = 20) -> list[sqlite3.Row]
     ).fetchall()
 
 
-def fetch_recent_filtered(conn: sqlite3.Connection, keyword: str, tag: str, limit: int = 100) -> list[sqlite3.Row]:
+def fetch_recent_filtered(
+    conn: sqlite3.Connection,
+    keyword: str,
+    tag: str,
+    limit: int = 100,
+    read_mode: str = "unread",
+) -> list[sqlite3.Row]:
     kw = keyword.strip()
     tg = tag.strip()
-    if not kw and not tg:
-        return fetch_recent(conn, limit)
-
+    mode = (read_mode or "unread").strip().lower()
     where_parts: list[str] = []
+    if mode == "unread":
+        where_parts.append("is_read = 0")
+    elif mode == "read":
+        where_parts.append("is_read = 1")
     params: list[str | int] = []
     if kw:
         like = f"%{kw}%"
@@ -1167,7 +1176,34 @@ def fetch_recent_filtered(conn: sqlite3.Connection, keyword: str, tag: str, limi
 
     return conn.execute(
         f"""
-        SELECT id, text, source, author, tags, repetitions, next_review
+        SELECT id, text, source, author, tags, favorite, is_read, repetitions, next_review
+        FROM highlights
+        WHERE {where_sql}
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        tuple(params),
+    ).fetchall()
+
+
+def fetch_favorites_filtered(conn: sqlite3.Connection, keyword: str, tag: str, limit: int = 100) -> list[sqlite3.Row]:
+    kw = keyword.strip()
+    tg = tag.strip()
+    where_parts: list[str] = ["favorite = 1"]
+    params: list[str | int] = []
+    if kw:
+        like = f"%{kw}%"
+        where_parts.append("(text LIKE ? OR source LIKE ? OR author LIKE ? OR tags LIKE ?)")
+        params.extend([like, like, like, like])
+    if tg:
+        tag_like = f"%{tg}%"
+        where_parts.append("tags LIKE ?")
+        params.append(tag_like)
+    where_sql = " AND ".join(where_parts)
+    params.append(limit)
+    return conn.execute(
+        f"""
+        SELECT id, text, source, author, tags, favorite, is_read, repetitions, next_review
         FROM highlights
         WHERE {where_sql}
         ORDER BY id DESC
@@ -1193,7 +1229,8 @@ def row_meta(row: sqlite3.Row) -> str:
     src = f"{row['author']} - {row['source']}".strip(" -")
     tag_value = row["tags"] if "tags" in row.keys() else ""
     tag = render_tags_html(tag_value)
-    return f"{html.escape(src) if src else 'Unknown'}{tag}"
+    read_tag = "<span class='tag'>已读</span>" if ("is_read" in row.keys() and int(row["is_read"] or 0) == 1) else ""
+    return f"{html.escape(src) if src else 'Unknown'}{read_tag}{tag}"
 
 
 def normalize_tags(raw_tags: str) -> str:
@@ -1231,6 +1268,21 @@ def render_tags_html(raw_tags: str) -> str:
         return ""
     tags = [x.strip() for x in normalized.split(",") if x.strip()]
     return "".join(f"<span class='tag'>{html.escape(t)}</span>" for t in tags)
+
+
+def markdown_preview_text(md_text: str, limit: int = 100) -> str:
+    text = md_text or ""
+    # Remove fenced code blocks and inline markdown markers for list preview.
+    text = re.sub(r"(?is)```.*?```", " ", text)
+    text = re.sub(r"!\[[^\]]*\]\([^)]+\)", " ", text)
+    text = re.sub(r"\[[^\]]+\]\((https?://[^\s)]+)\)", r"\1", text)
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    text = re.sub(r"^#{1,6}\s*", "", text, flags=re.MULTILINE)
+    text = re.sub(r"^\s*[-*]\s+", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "..."
 
 
 def strip_leading_duplicate_title(md_text: str, source_title: str) -> str:
@@ -1293,6 +1345,34 @@ def delete_button(highlight_id: int, return_to: str) -> str:
     )
 
 
+def favorite_button(highlight_id: int, is_favorite: bool, return_to: str) -> str:
+    safe_return = html.escape(return_to, quote=True)
+    label = "取消收藏" if is_favorite else "收藏"
+    return (
+        "<form method='post' action='/highlight/favorite' style='display:inline;'>"
+        f"<input type='hidden' name='id' value='{highlight_id}' />"
+        f"<input type='hidden' name='return_to' value='{safe_return}' />"
+        "<button type='submit'>"
+        f"{label}"
+        "</button>"
+        "</form>"
+    )
+
+
+def read_button(highlight_id: int, is_read: bool, return_to: str) -> str:
+    safe_return = html.escape(return_to, quote=True)
+    label = "标记未读" if is_read else "标记已读"
+    return (
+        "<form method='post' action='/highlight/read' style='display:inline;'>"
+        f"<input type='hidden' name='id' value='{highlight_id}' />"
+        f"<input type='hidden' name='return_to' value='{safe_return}' />"
+        "<button type='submit'>"
+        f"{label}"
+        "</button>"
+        "</form>"
+    )
+
+
 def detail_title_link(highlight_id: int, label: str) -> str:
     return f"<a href='/highlight?id={highlight_id}'>{html.escape(label)}</a>"
 
@@ -1312,6 +1392,8 @@ def make_handler(app: App):
                 return self.handle_review()
             if path == "/highlights":
                 return self.handle_highlights()
+            if path == "/favorites":
+                return self.handle_favorites()
             if path == "/highlight":
                 return self.handle_highlight_detail()
             if path == "/daily":
@@ -1333,6 +1415,10 @@ def make_handler(app: App):
                 return self.handle_delete_highlight()
             if path == "/highlight/add-tag":
                 return self.handle_add_tag_submit()
+            if path == "/highlight/favorite":
+                return self.handle_favorite_submit()
+            if path == "/highlight/read":
+                return self.handle_read_submit()
             if path == "/review/score":
                 return self.handle_score_submit()
             self.respond(HTTPStatus.NOT_FOUND, page_layout("404", "<h1>Not found</h1>"))
@@ -1343,11 +1429,20 @@ def make_handler(app: App):
             parsed = parse_qs(data)
             return {k: v[0] for k, v in parsed.items()}
 
-        def respond(self, status: HTTPStatus, body: str, content_type: str = "text/html; charset=utf-8"):
+        def respond(
+            self,
+            status: HTTPStatus,
+            body: str,
+            content_type: str = "text/html; charset=utf-8",
+            extra_headers: list[tuple[str, str]] | None = None,
+        ):
             raw = body.encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(raw)))
+            if extra_headers:
+                for k, v in extra_headers:
+                    self.send_header(k, v)
             self.end_headers()
             self.wfile.write(raw)
 
@@ -1355,6 +1450,19 @@ def make_handler(app: App):
             self.send_response(HTTPStatus.SEE_OTHER)
             self.send_header("Location", location)
             self.end_headers()
+
+        def get_cookie(self, name: str) -> str:
+            raw = self.headers.get("Cookie", "")
+            if not raw:
+                return ""
+            for part in raw.split(";"):
+                token = part.strip()
+                if not token or "=" not in token:
+                    continue
+                k, v = token.split("=", 1)
+                if k.strip() == name:
+                    return v.strip()
+            return ""
 
         def handle_home(self):
             parsed = urlparse(self.path)
@@ -1371,6 +1479,8 @@ def make_handler(app: App):
                 actions = (
                     "<div class='row-actions'>"
                     f"<a href='/highlight?id={row['id']}'>查看并批注</a>"
+                    f"{read_button(row['id'], bool(row['is_read']), '/')}"
+                    f"{favorite_button(row['id'], bool(row['favorite']), '/')}"
                     f"{delete_button(row['id'], '/')}"
                     "</div>"
                 )
@@ -1559,15 +1669,32 @@ def make_handler(app: App):
 
         def handle_highlights(self):
             parsed = urlparse(self.path)
-            keyword = parse_qs(parsed.query).get("q", [""])[0].strip()
-            tag_filter = parse_qs(parsed.query).get("tag", [""])[0].strip()
+            query = parse_qs(parsed.query)
+            keyword = query.get("q", [""])[0].strip()
+            tag_filter = query.get("tag", [""])[0].strip()
+            read_query = query.get("read", [""])[0].strip().lower()
+            if read_query in {"all", "unread", "read"}:
+                read_filter = read_query
+            else:
+                cookie_read = self.get_cookie("highlights_read_filter").strip().lower()
+                read_filter = cookie_read if cookie_read in {"all", "unread", "read"} else "unread"
+            return_to = "/highlights"
+            if parsed.query:
+                return_to = f"/highlights?{parsed.query}"
             with app.conn() as conn:
-                rows = fetch_recent_filtered(conn, keyword, tag_filter, 100)
+                rows = fetch_recent_filtered(conn, keyword, tag_filter, 100, read_filter)
             has_filter = bool(keyword or tag_filter)
             result_meta = (
                 f"<p class='meta'>一共搜到 <strong>{len(rows)}</strong> 个结果。</p>"
                 if has_filter
                 else f"<p class='meta'>当前共显示 <strong>{len(rows)}</strong> 条摘录。</p>"
+            )
+            read_select = (
+                "<select name='read' onchange='this.form.submit()'>"
+                f"<option value='unread' {'selected' if read_filter == 'unread' else ''}>仅未读</option>"
+                f"<option value='read' {'selected' if read_filter == 'read' else ''}>仅已读</option>"
+                f"<option value='all' {'selected' if read_filter == 'all' else ''}>全部</option>"
+                "</select>"
             )
             if not rows:
                 body = (
@@ -1575,11 +1702,88 @@ def make_handler(app: App):
                     "<form method='get' action='/highlights' class='inline-form'>"
                     f"<input name='q' placeholder='搜索关键词并高亮' value='{html.escape(keyword)}' />"
                     f"<input name='tag' placeholder='按标签过滤（如 Java）' value='{html.escape(tag_filter)}' />"
+                    f"{read_select}"
                     "<button type='submit'>搜索</button></form>"
                     f"{result_meta}"
                     "<div class='card'>暂无数据。</div>"
                 )
-                self.respond(HTTPStatus.OK, page_layout("全部摘录", body))
+                cookie_header = (
+                    "highlights_read_filter="
+                    f"{read_filter}; Path=/; Max-Age=31536000; SameSite=Lax"
+                )
+                self.respond(
+                    HTTPStatus.OK,
+                    page_layout("全部摘录", body),
+                    extra_headers=[("Set-Cookie", cookie_header)],
+                )
+                return
+            blocks = []
+            for row in rows:
+                title_label = card_title_label(row)
+                body_md = strip_leading_duplicate_title(row["text"], row["source"] if "source" in row.keys() else "")
+                preview = markdown_preview_text(body_md, 100)
+                preview_html = f"<p>{render_inline(inject_highlight_markers(preview, keyword))}</p>" if preview else "<p></p>"
+                actions = (
+                    "<div class='row-actions'>"
+                    f"<a href='/highlight?id={row['id']}'>查看并批注</a>"
+                    f"{read_button(row['id'], bool(row['is_read']), return_to)}"
+                    f"{favorite_button(row['id'], bool(row['favorite']), return_to)}"
+                    f"{delete_button(row['id'], return_to)}"
+                    "</div>"
+                )
+                blocks.append(
+                    f"<div class='card'><h2>{detail_title_link(row['id'], title_label)}</h2>"
+                    f"<div class='md'>{preview_html}</div>"
+                    f"<p class='meta'>{row_meta(row)}</p>"
+                    f"{actions}</div>"
+                )
+            body = (
+                "<h1>全部摘录</h1>"
+                "<form method='get' action='/highlights' class='inline-form'>"
+                f"<input name='q' placeholder='搜索关键词并高亮' value='{html.escape(keyword)}' />"
+                f"<input name='tag' placeholder='按标签过滤（如 Java）' value='{html.escape(tag_filter)}' />"
+                f"{read_select}"
+                "<button type='submit'>搜索</button></form>"
+                f"{result_meta}"
+                "<p class='meta'>支持高亮语法：在文本里使用 <code>==需要高亮的内容==</code>。</p>"
+                + "".join(blocks)
+            )
+            cookie_header = (
+                "highlights_read_filter="
+                f"{read_filter}; Path=/; Max-Age=31536000; SameSite=Lax"
+            )
+            self.respond(
+                HTTPStatus.OK,
+                page_layout("全部摘录", body),
+                extra_headers=[("Set-Cookie", cookie_header)],
+            )
+
+        def handle_favorites(self):
+            parsed = urlparse(self.path)
+            keyword = parse_qs(parsed.query).get("q", [""])[0].strip()
+            tag_filter = parse_qs(parsed.query).get("tag", [""])[0].strip()
+            return_to = "/favorites"
+            if parsed.query:
+                return_to = f"/favorites?{parsed.query}"
+            with app.conn() as conn:
+                rows = fetch_favorites_filtered(conn, keyword, tag_filter, 100)
+            has_filter = bool(keyword or tag_filter)
+            result_meta = (
+                f"<p class='meta'>一共搜到 <strong>{len(rows)}</strong> 个结果。</p>"
+                if has_filter
+                else f"<p class='meta'>当前共显示 <strong>{len(rows)}</strong> 条收藏摘录。</p>"
+            )
+            if not rows:
+                body = (
+                    "<h1>Favorites</h1>"
+                    "<form method='get' action='/favorites' class='inline-form'>"
+                    f"<input name='q' placeholder='搜索关键词并高亮' value='{html.escape(keyword)}' />"
+                    f"<input name='tag' placeholder='按标签过滤（如 Java）' value='{html.escape(tag_filter)}' />"
+                    "<button type='submit'>搜索</button></form>"
+                    f"{result_meta}"
+                    "<div class='card'>暂无收藏摘录。</div>"
+                )
+                self.respond(HTTPStatus.OK, page_layout("Favorites", body))
                 return
             blocks = []
             for row in rows:
@@ -1588,7 +1792,9 @@ def make_handler(app: App):
                 actions = (
                     "<div class='row-actions'>"
                     f"<a href='/highlight?id={row['id']}'>查看并批注</a>"
-                    f"{delete_button(row['id'], '/highlights')}"
+                    f"{read_button(row['id'], bool(row['is_read']), return_to)}"
+                    f"{favorite_button(row['id'], bool(row['favorite']), return_to)}"
+                    f"{delete_button(row['id'], return_to)}"
                     "</div>"
                 )
                 blocks.append(
@@ -1598,8 +1804,8 @@ def make_handler(app: App):
                     f"{actions}</div>"
                 )
             body = (
-                "<h1>全部摘录</h1>"
-                "<form method='get' action='/highlights' class='inline-form'>"
+                "<h1>Favorites</h1>"
+                "<form method='get' action='/favorites' class='inline-form'>"
                 f"<input name='q' placeholder='搜索关键词并高亮' value='{html.escape(keyword)}' />"
                 f"<input name='tag' placeholder='按标签过滤（如 Java）' value='{html.escape(tag_filter)}' />"
                 "<button type='submit'>搜索</button></form>"
@@ -1607,7 +1813,7 @@ def make_handler(app: App):
                 "<p class='meta'>支持高亮语法：在文本里使用 <code>==需要高亮的内容==</code>。</p>"
                 + "".join(blocks)
             )
-            self.respond(HTTPStatus.OK, page_layout("全部摘录", body))
+            self.respond(HTTPStatus.OK, page_layout("Favorites", body))
 
         def handle_highlight_detail(self):
             parsed = urlparse(self.path)
@@ -1622,7 +1828,7 @@ def make_handler(app: App):
             with app.conn() as conn:
                 row = conn.execute(
                     """
-                    SELECT id, text, source, author, location, tags, next_review
+                    SELECT id, text, source, author, location, tags, favorite, is_read, next_review
                     FROM highlights
                     WHERE id = ?
                     """,
@@ -1631,6 +1837,17 @@ def make_handler(app: App):
                 if row is None:
                     self.respond(HTTPStatus.NOT_FOUND, page_layout("错误", "<h1>摘录不存在</h1>"))
                     return
+                if int(row["is_read"] or 0) == 0:
+                    conn.execute("UPDATE highlights SET is_read = 1 WHERE id = ?", (highlight_id,))
+                    conn.commit()
+                    row = conn.execute(
+                        """
+                        SELECT id, text, source, author, location, tags, favorite, is_read, next_review
+                        FROM highlights
+                        WHERE id = ?
+                        """,
+                        (highlight_id,),
+                    ).fetchone()
                 annotations = fetch_annotations(conn, highlight_id)
 
             selected_quotes = [a["selected_text"] for a in annotations if a["selected_text"]]
@@ -1687,6 +1904,7 @@ def make_handler(app: App):
                     f"<p class='meta'>原文链接："
                     f"<a href='{safe_link}' target='_blank' rel='noopener noreferrer'>{safe_link}</a></p>"
                 )
+            detail_return_to = f"/highlight?id={row['id']}"
             interaction_html = f"""
                 <div class='card'>
                   <h2>交互批注</h2>
@@ -2030,9 +2248,13 @@ def make_handler(app: App):
                 "<input name='tags' placeholder='追加标签（逗号/分号分隔）' />"
                 "<button type='submit'>追加标签</button>"
                 "</form>"
+                "<div class='row-actions'>"
+                f"{read_button(row['id'], bool(row['is_read']), detail_return_to)}"
+                f"{favorite_button(row['id'], bool(row['favorite']), detail_return_to)}"
+                f"{delete_button(row['id'], '/highlights')}"
+                "</div>"
                 f"{location_html}"
                 f"<div class='md' id='article-content'>{rendered}</div>"
-                f"<div class='row-actions'>{delete_button(row['id'], '/highlights')}</div>"
                 "</div>"
                 f"{interaction_html}"
                 "<h2>批注记录</h2>"
@@ -2138,6 +2360,52 @@ def make_handler(app: App):
                 conn.commit()
             self.redirect(f"/highlight?id={highlight_id}")
 
+        def handle_favorite_submit(self):
+            form = self.read_form()
+            try:
+                highlight_id = int(form.get("id", "0"))
+            except ValueError:
+                highlight_id = 0
+            return_to = form.get("return_to", "/highlights").strip() or "/highlights"
+            if highlight_id <= 0:
+                self.respond(HTTPStatus.BAD_REQUEST, page_layout("错误", "<h1>参数错误</h1>"))
+                return
+            if not return_to.startswith("/"):
+                return_to = "/highlights"
+
+            with app.conn() as conn:
+                row = conn.execute("SELECT favorite FROM highlights WHERE id = ?", (highlight_id,)).fetchone()
+                if row is None:
+                    self.respond(HTTPStatus.NOT_FOUND, page_layout("错误", "<h1>摘录不存在</h1>"))
+                    return
+                new_favorite = 0 if int(row["favorite"] or 0) == 1 else 1
+                conn.execute("UPDATE highlights SET favorite = ? WHERE id = ?", (new_favorite, highlight_id))
+                conn.commit()
+            self.redirect(return_to)
+
+        def handle_read_submit(self):
+            form = self.read_form()
+            try:
+                highlight_id = int(form.get("id", "0"))
+            except ValueError:
+                highlight_id = 0
+            return_to = form.get("return_to", "/highlights").strip() or "/highlights"
+            if highlight_id <= 0:
+                self.respond(HTTPStatus.BAD_REQUEST, page_layout("错误", "<h1>参数错误</h1>"))
+                return
+            if not return_to.startswith("/"):
+                return_to = "/highlights"
+
+            with app.conn() as conn:
+                row = conn.execute("SELECT is_read FROM highlights WHERE id = ?", (highlight_id,)).fetchone()
+                if row is None:
+                    self.respond(HTTPStatus.NOT_FOUND, page_layout("错误", "<h1>摘录不存在</h1>"))
+                    return
+                new_is_read = 0 if int(row["is_read"] or 0) == 1 else 1
+                conn.execute("UPDATE highlights SET is_read = ? WHERE id = ?", (new_is_read, highlight_id))
+                conn.commit()
+            self.redirect(return_to)
+
         def handle_review(self):
             with app.conn() as conn:
                 rows = fetch_due(conn, 1)
@@ -2158,7 +2426,7 @@ def make_handler(app: App):
                 f"<h2>{detail_title_link(row['id'], title_label)}</h2>"
                 f"<div class='md'>{render_markdown(body_md)}</div>"
                 f"<p class='meta'>{row_meta(row)}</p>"
-                f"<div class='row-actions'><a href='/highlight?id={row['id']}'>查看并批注</a>{delete_button(row['id'], '/review')}</div>"
+                f"<div class='row-actions'><a href='/highlight?id={row['id']}'>查看并批注</a>{read_button(row['id'], bool(row['is_read']), '/review')}{favorite_button(row['id'], bool(row['favorite']), '/review')}{delete_button(row['id'], '/review')}</div>"
                 f"<form method='post' action='/review/score'>"
                 f"<input type='hidden' name='id' value='{row['id']}' />"
                 f"<div class='scorebar'>{buttons}</div>"
@@ -2212,14 +2480,14 @@ def make_handler(app: App):
             with app.conn() as conn:
                 due = fetch_due(conn, 10)
                 random_rows = conn.execute(
-                    "SELECT id, text, source, author, tags, next_review, created_at FROM highlights ORDER BY RANDOM() LIMIT 5"
+                    "SELECT id, text, source, author, tags, favorite, is_read, next_review, created_at FROM highlights ORDER BY RANDOM() LIMIT 5"
                 ).fetchall()
             due_blocks = []
             for r in due:
                 title_label = card_title_label(r)
                 body_md = strip_leading_duplicate_title(r["text"], r["source"] if "source" in r.keys() else "")
                 due_blocks.append(
-                    f"<div class='card'><h2>{detail_title_link(r['id'], title_label)}</h2><div class='md'>{render_markdown(body_md)}</div><p class='meta'>{row_meta(r)}</p><div class='row-actions'><a href='/highlight?id={r['id']}'>查看并批注</a>{delete_button(r['id'], '/daily')}</div></div>"
+                    f"<div class='card'><h2>{detail_title_link(r['id'], title_label)}</h2><div class='md'>{render_markdown(body_md)}</div><p class='meta'>{row_meta(r)}</p><div class='row-actions'><a href='/highlight?id={r['id']}'>查看并批注</a>{read_button(r['id'], bool(r['is_read']), '/daily')}{favorite_button(r['id'], bool(r['favorite']), '/daily')}{delete_button(r['id'], '/daily')}</div></div>"
                 )
             due_html = "".join(due_blocks) or "<div class='card'><p>今天没有到期摘录。</p></div>"
             random_blocks = []
@@ -2227,7 +2495,7 @@ def make_handler(app: App):
                 title_label = card_title_label(r)
                 body_md = strip_leading_duplicate_title(r["text"], r["source"] if "source" in r.keys() else "")
                 random_blocks.append(
-                    f"<div class='card'><h2>{detail_title_link(r['id'], title_label)}</h2><div class='md'>{render_markdown(body_md)}</div><p class='meta'>{row_meta(r)}</p><div class='row-actions'><a href='/highlight?id={r['id']}'>查看并批注</a>{delete_button(r['id'], '/daily')}</div></div>"
+                    f"<div class='card'><h2>{detail_title_link(r['id'], title_label)}</h2><div class='md'>{render_markdown(body_md)}</div><p class='meta'>{row_meta(r)}</p><div class='row-actions'><a href='/highlight?id={r['id']}'>查看并批注</a>{read_button(r['id'], bool(r['is_read']), '/daily')}{favorite_button(r['id'], bool(r['favorite']), '/daily')}{delete_button(r['id'], '/daily')}</div></div>"
                 )
             random_html = "".join(random_blocks) or "<div class='card'><p>暂无随机摘录。</p></div>"
             body = (
