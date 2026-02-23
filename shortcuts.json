@@ -1,0 +1,16 @@
+{
+  "global": {
+    "go_add_link": ["a"]
+  },
+  "detail": {
+    "highlight": ["h"],
+    "note": ["m"],
+    "edit_note": ["enter"],
+    "delete_annotation": ["delete", "backspace"],
+    "next_mark": ["j"],
+    "prev_mark": ["k"],
+    "save_note": ["meta+s", "ctrl+s"],
+    "focus_search": ["meta+f", "ctrl+f"],
+    "back_to_highlights": ["z"]
+  }
+}

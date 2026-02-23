@@ -4,21 +4,127 @@ import datetime as dt
 import html
 import html as html_std
 import json
+import os
 import re
 import sqlite3
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import parse_qs, parse_qsl, urljoin, urlparse, urlsplit
+from urllib.parse import parse_qs, parse_qsl, urlencode, urljoin, urlparse, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from parser_engine import parse_link_to_markdown
 from readlite import DEFAULT_DB, _next_schedule, connect
 
 
+DEFAULT_SHORTCUTS: dict[str, dict[str, list[str]]] = {
+    "global": {
+        "go_add_link": ["a"],
+    },
+    "detail": {
+        "highlight": ["h"],
+        "note": ["m"],
+        "edit_note": ["enter"],
+        "delete_annotation": ["delete", "backspace"],
+        "next_mark": ["j"],
+        "prev_mark": ["k"],
+        "save_note": ["meta+s", "ctrl+s"],
+        "focus_search": ["meta+f", "ctrl+f"],
+        "back_to_highlights": ["z"],
+    },
+}
+
+
+def _merge_dict(base: dict, override: dict) -> dict:
+    merged = dict(base)
+    for key, value in override.items():
+        base_value = merged.get(key)
+        if isinstance(base_value, dict) and isinstance(value, dict):
+            merged[key] = _merge_dict(base_value, value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def load_shortcuts_config() -> dict[str, dict[str, list[str]]]:
+    path = os.path.join(os.path.dirname(__file__), "shortcuts.json")
+    if not os.path.exists(path):
+        return DEFAULT_SHORTCUTS
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            user_cfg = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return DEFAULT_SHORTCUTS
+    if not isinstance(user_cfg, dict):
+        return DEFAULT_SHORTCUTS
+    merged = _merge_dict(DEFAULT_SHORTCUTS, user_cfg)
+    return merged
+
+
+SHORTCUTS_CONFIG = load_shortcuts_config()
+
+
+def shortcut_list(scope: str, action: str) -> list[str]:
+    group = SHORTCUTS_CONFIG.get(scope, {})
+    if not isinstance(group, dict):
+        return []
+    raw = group.get(action, [])
+    if not isinstance(raw, list):
+        return []
+    return [str(x).strip().lower() for x in raw if str(x).strip()]
+
+
+def format_shortcut_spec(spec: str) -> str:
+    token_map = {
+        "meta": "⌘",
+        "ctrl": "Ctrl",
+        "alt": "Alt",
+        "shift": "Shift",
+        "enter": "Enter",
+        "delete": "Delete",
+        "backspace": "Backspace",
+        "escape": "Esc",
+        "space": "Space",
+    }
+    parts = [p for p in (spec or "").split("+") if p]
+    shown = []
+    for p in parts:
+        key = p.lower().strip()
+        shown.append(token_map.get(key, key.upper() if len(key) == 1 else key.title()))
+    return "+".join(shown)
+
+
+def shortcut_hint(scope: str, action: str, fallback: str = "-") -> str:
+    specs = shortcut_list(scope, action)
+    if not specs:
+        return fallback
+    return " / ".join(format_shortcut_spec(s) for s in specs)
+
+
 def today_iso() -> str:
     return dt.date.today().isoformat()
+
+
+def normalize_article_url(url: str) -> str:
+    try:
+        parts = urlsplit((url or "").strip())
+    except ValueError:
+        return (url or "").strip()
+    scheme = (parts.scheme or "https").lower()
+    netloc = (parts.netloc or "").lower()
+    path = parts.path or "/"
+    if path != "/":
+        path = path.rstrip("/")
+    query_items = parse_qsl(parts.query, keep_blank_values=True)
+    filtered = []
+    for k, v in query_items:
+        lk = (k or "").lower()
+        if lk.startswith("utm_") or lk in {"fbclid", "gclid", "igshid", "mc_cid", "mc_eid"}:
+            continue
+        filtered.append((k, v))
+    query = urlencode(filtered)
+    return urlunsplit((scheme, netloc, path, query, ""))
 
 
 class ArticleExtractor(HTMLParser):
@@ -549,6 +655,8 @@ def render_markdown(text: str, keyword: str = "", selected_quotes: list[str] | N
 
 
 def page_layout(title: str, body: str) -> str:
+    add_link_hint = shortcut_hint("global", "go_add_link", "A")
+    global_shortcuts_json = json.dumps(SHORTCUTS_CONFIG.get("global", {}), ensure_ascii=False)
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -799,25 +907,73 @@ def page_layout(title: str, body: str) -> str:
     <div class="nav">
       <a href="/">首页</a>
       <a href="/add">添加摘录</a>
-      <a href="/add-link" title="快捷键 A">添加链接</a>
-      <a href="/review">复习</a>
+      <a href="/add-link" title="快捷键 {html.escape(add_link_hint, quote=True)}">添加链接</a>
       <a href="/highlights">全部摘录</a>
-      <a href="/daily">今日回顾</a>
     </div>
     {body}
   </div>
   <script>
     (function () {{
+      var globalShortcuts = {global_shortcuts_json};
+
       function isTypingTarget(el) {{
         if (!el) return false;
         var tag = (el.tagName || '').toLowerCase();
         return tag === 'input' || tag === 'textarea' || el.isContentEditable;
       }}
 
+      function normalizeKeyName(key) {{
+        var k = (key || '').toLowerCase();
+        if (k === ' ') return 'space';
+        if (k === 'esc') return 'escape';
+        if (k === 'arrowup') return 'up';
+        if (k === 'arrowdown') return 'down';
+        if (k === 'arrowleft') return 'left';
+        if (k === 'arrowright') return 'right';
+        return k;
+      }}
+
+      function normalizeShortcutSpec(spec) {{
+        var tokens = String(spec || '').toLowerCase().split('+');
+        var mods = [];
+        var key = '';
+        for (var i = 0; i < tokens.length; i++) {{
+          var t = normalizeKeyName(tokens[i].trim());
+          if (!t) continue;
+          if (t === 'meta' || t === 'ctrl' || t === 'alt' || t === 'shift') {{
+            mods.push(t);
+          }} else {{
+            key = t;
+          }}
+        }}
+        mods.sort();
+        if (!key) return mods.join('+');
+        return mods.concat([key]).join('+');
+      }}
+
+      function eventSpec(e) {{
+        var mods = [];
+        if (e.metaKey) mods.push('meta');
+        if (e.ctrlKey) mods.push('ctrl');
+        if (e.altKey) mods.push('alt');
+        if (e.shiftKey) mods.push('shift');
+        mods.sort();
+        mods.push(normalizeKeyName(e.key || ''));
+        return mods.join('+');
+      }}
+
+      function matchShortcut(e, specs) {{
+        if (!Array.isArray(specs)) return false;
+        var hit = eventSpec(e);
+        for (var i = 0; i < specs.length; i++) {{
+          if (hit === normalizeShortcutSpec(specs[i])) return true;
+        }}
+        return false;
+      }}
+
       document.addEventListener('keydown', function (e) {{
-        if (e.metaKey || e.ctrlKey || e.altKey) return;
         if (isTypingTarget(e.target)) return;
-        if ((e.key || '').toLowerCase() === 'a') {{
+        if (matchShortcut(e, globalShortcuts.go_add_link || [])) {{
           e.preventDefault();
           window.location.href = '/add-link';
         }}
@@ -882,13 +1038,23 @@ def fetch_counts(conn: sqlite3.Connection) -> dict:
     return {"due": due, "total": total}
 
 
-def fetch_due(conn: sqlite3.Connection, limit: int = 20) -> list[sqlite3.Row]:
+def fetch_due(
+    conn: sqlite3.Connection,
+    limit: int = 20,
+    sort_order: str = "desc",
+    sort_by_time: bool = False,
+) -> list[sqlite3.Row]:
+    direction = "ASC" if (sort_order or "").lower() == "asc" else "DESC"
+    if sort_by_time:
+        order_clause = f"datetime(created_at) {direction}, id {direction}"
+    else:
+        order_clause = "next_review, id"
     return conn.execute(
-        """
-        SELECT id, text, source, author, tags, repetitions, next_review, interval_days, efactor
+        f"""
+        SELECT id, text, source, author, tags, repetitions, next_review, interval_days, efactor, created_at
         FROM highlights
         WHERE date(next_review) <= date(?)
-        ORDER BY next_review, id
+        ORDER BY {order_clause}
         LIMIT ?
         """,
         (today_iso(), limit),
@@ -1017,9 +1183,13 @@ def make_handler(app: App):
             self.end_headers()
 
         def handle_home(self):
+            parsed = urlparse(self.path)
+            sort = parse_qs(parsed.query).get("sort", ["desc"])[0].strip().lower()
+            if sort not in {"asc", "desc"}:
+                sort = "desc"
             with app.conn() as conn:
                 counts = fetch_counts(conn)
-                due = fetch_due(conn, 6)
+                due = fetch_due(conn, 6, sort_order=sort, sort_by_time=True)
             cards = []
             for row in due:
                 title_label = f"#{row['id']}（复习 {row['repetitions']} 次）"
@@ -1034,6 +1204,14 @@ def make_handler(app: App):
                     f"<div class='md'>{render_markdown(row['text'])}</div><p class='meta'>{row_meta(row)}</p>{actions}</div>"
                 )
             due_html = "".join(cards) if cards else "<div class='card'><p>今天没有到期摘录。</p></div>"
+            sort_form = (
+                "<form method='get' action='/' class='inline-form'>"
+                "<select name='sort' onchange='this.form.submit()'>"
+                f"<option value='desc' {'selected' if sort == 'desc' else ''}>时间倒序（默认）</option>"
+                f"<option value='asc' {'selected' if sort == 'asc' else ''}>时间顺序</option>"
+                "</select>"
+                "</form>"
+            )
             body = (
                 "<h1>Readlite Web</h1>"
                 f"<div class='grid'>"
@@ -1041,6 +1219,7 @@ def make_handler(app: App):
                 f"<div class='card'><h2>今日到期</h2><p>{counts['due']}</p></div>"
                 "</div>"
                 "<h2 style='margin-top:14px;'>待复习</h2>"
+                f"{sort_form}"
                 f"{due_html}"
             )
             self.respond(HTTPStatus.OK, page_layout("Readlite Web", body))
@@ -1070,13 +1249,40 @@ def make_handler(app: App):
             <form method="post" action="/add-link" class="card">
               <h2>自动解析网页为 Markdown 摘录</h2>
               <p class="meta">输入文章链接后，系统会提取标题和正文片段，自动生成格式化文本。</p>
-              <p><input name="url" placeholder="https://example.com/article" required /></p>
+              <p><input id="add-link-url" name="url" placeholder="https://example.com/article" required autofocus /></p>
               <div class="grid">
                 <p><input name="author" placeholder="作者（可选，留空自动）" /></p>
                 <p><input name="tags" placeholder="标签（逗号分隔，可选）" /></p>
               </div>
               <button type="submit">抓取并保存</button>
             </form>
+            <script>
+            (function() {
+              var input = document.getElementById('add-link-url');
+              if (!input) return;
+              function keepFocus() {
+                if (document.activeElement === input) return;
+                input.focus({ preventScroll: true });
+                try {
+                  var len = (input.value || '').length;
+                  input.setSelectionRange(len, len);
+                } catch (e) {}
+              }
+              window.requestAnimationFrame(keepFocus);
+              setTimeout(keepFocus, 50);
+              setTimeout(keepFocus, 150);
+              window.addEventListener('pageshow', function () {
+                setTimeout(keepFocus, 0);
+              });
+              document.addEventListener('keydown', function (e) {
+                var tag = (e.target && e.target.tagName ? e.target.tagName.toLowerCase() : '');
+                var typing = tag === 'input' || tag === 'textarea' || (e.target && e.target.isContentEditable);
+                if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+                  keepFocus();
+                }
+              }, { once: true });
+            })();
+            </script>
             """
             self.respond(HTTPStatus.OK, page_layout("添加链接", body))
 
@@ -1112,6 +1318,32 @@ def make_handler(app: App):
             if not url or not (url.startswith("http://") or url.startswith("https://")):
                 self.respond(HTTPStatus.BAD_REQUEST, page_layout("错误", "<h1>链接必须以 http:// 或 https:// 开头</h1>"))
                 return
+            normalized_url = normalize_article_url(url)
+            with app.conn() as conn:
+                existing = conn.execute(
+                    """
+                    SELECT id, source, location
+                    FROM highlights
+                    WHERE location IN (?, ?)
+                    ORDER BY id DESC
+                    LIMIT 1
+                    """,
+                    (url, normalized_url),
+                ).fetchone()
+            if existing is not None:
+                existing_title = html.escape(existing["source"] or "已摘录内容")
+                existing_loc = html.escape(existing["location"] or normalized_url, quote=True)
+                body = (
+                    "<h1>链接已摘录</h1>"
+                    "<div class='card'>"
+                    "<p class='meta'>该 URL 已存在，不允许重复摘录。</p>"
+                    f"<p><strong>{existing_title}</strong></p>"
+                    f"<p class='meta'>已保存链接：{existing_loc}</p>"
+                    f"<p><a href='/highlight?id={existing['id']}'>打开已有摘录 #{existing['id']}</a></p>"
+                    "</div>"
+                )
+                self.respond(HTTPStatus.CONFLICT, page_layout("链接已摘录", body))
+                return
             try:
                 parsed = parse_link_to_markdown(url)
                 title, markdown = parsed.title, parsed.markdown
@@ -1141,7 +1373,7 @@ def make_handler(app: App):
                         markdown,
                         source,
                         author or parsed.netloc,
-                        url,
+                        normalized_url,
                         tags,
                         now,
                         today_iso(),
@@ -1250,6 +1482,16 @@ def make_handler(app: App):
                 )
             ann_html = "".join(ann_blocks) if ann_blocks else "<div class='card'><p>还没有批注。</p></div>"
             ann_index_json = json.dumps(ann_index, ensure_ascii=False)
+            detail_shortcuts_json = json.dumps(SHORTCUTS_CONFIG.get("detail", {}), ensure_ascii=False)
+            hint_highlight = shortcut_hint("detail", "highlight", "H")
+            hint_note = shortcut_hint("detail", "note", "M")
+            hint_next = shortcut_hint("detail", "next_mark", "J")
+            hint_prev = shortcut_hint("detail", "prev_mark", "K")
+            hint_edit = shortcut_hint("detail", "edit_note", "Enter")
+            hint_delete = shortcut_hint("detail", "delete_annotation", "Delete")
+            hint_back = shortcut_hint("detail", "back_to_highlights", "Z")
+            hint_save = shortcut_hint("detail", "save_note", "⌘+S / Ctrl+S")
+            hint_search = shortcut_hint("detail", "focus_search", "⌘+F / Ctrl+F")
             location_html = ""
             if row["location"]:
                 safe_link = html.escape(row["location"], quote=True)
@@ -1262,7 +1504,7 @@ def make_handler(app: App):
                   <h2>交互批注</h2>
                   <p class='meta'>在正文里先选中文本，再右键。可直接选择“高亮选中”或“写批注”。</p>
                   <p class='meta'>提示：批注会保存到下方批注记录，并自动在正文中高亮对应片段。</p>
-                  <p class='meta'>快捷键：<code>H</code> 高亮，<code>M</code> 批注，<code>J/K</code> 切换高亮，<code>Enter</code> 编辑，<code>Delete</code> 删除，<code>Z</code> 返回全部摘录，<code>⌘/Ctrl+S</code> 保存，<code>⌘/Ctrl+F</code> 搜索。</p>
+                  <p class='meta'>快捷键：<code>{html.escape(hint_highlight)}</code> 高亮，<code>{html.escape(hint_note)}</code> 批注，<code>{html.escape(hint_next)}</code>/<code>{html.escape(hint_prev)}</code> 切换高亮，<code>{html.escape(hint_edit)}</code> 编辑，<code>{html.escape(hint_delete)}</code> 删除，<code>{html.escape(hint_back)}</code> 返回全部摘录，<code>{html.escape(hint_save)}</code> 保存，<code>{html.escape(hint_search)}</code> 搜索。</p>
                   <p><input id='quick-find-input' placeholder='搜索当前文章高亮/笔记' /></p>
                 </div>
                 <form id='annotate-form' method='post' action='/highlight/annotate' style='display:none;'>
@@ -1303,6 +1545,7 @@ def make_handler(app: App):
                   var noteInput = document.getElementById('note-input');
                   var deleteAnnotationIdInput = document.getElementById('delete-annotation-id');
                   var annIndex = {ann_index_json};
+                  var detailShortcuts = {detail_shortcuts_json};
                   var currentSelection = '';
                   var currentMarkIndex = -1;
                   var marks = [];
@@ -1331,6 +1574,55 @@ def make_handler(app: App):
                     if (!el) return false;
                     var tag = (el.tagName || '').toLowerCase();
                     return tag === 'input' || tag === 'textarea' || el.isContentEditable;
+                  }}
+
+                  function normalizeKeyName(key) {{
+                    var k = (key || '').toLowerCase();
+                    if (k === ' ') return 'space';
+                    if (k === 'esc') return 'escape';
+                    if (k === 'arrowup') return 'up';
+                    if (k === 'arrowdown') return 'down';
+                    if (k === 'arrowleft') return 'left';
+                    if (k === 'arrowright') return 'right';
+                    return k;
+                  }}
+
+                  function normalizeShortcutSpec(spec) {{
+                    var tokens = String(spec || '').toLowerCase().split('+');
+                    var mods = [];
+                    var key = '';
+                    for (var i = 0; i < tokens.length; i++) {{
+                      var t = normalizeKeyName(tokens[i].trim());
+                      if (!t) continue;
+                      if (t === 'meta' || t === 'ctrl' || t === 'alt' || t === 'shift') {{
+                        mods.push(t);
+                      }} else {{
+                        key = t;
+                      }}
+                    }}
+                    mods.sort();
+                    if (!key) return mods.join('+');
+                    return mods.concat([key]).join('+');
+                  }}
+
+                  function eventSpec(e) {{
+                    var mods = [];
+                    if (e.metaKey) mods.push('meta');
+                    if (e.ctrlKey) mods.push('ctrl');
+                    if (e.altKey) mods.push('alt');
+                    if (e.shiftKey) mods.push('shift');
+                    mods.sort();
+                    mods.push(normalizeKeyName(e.key || ''));
+                    return mods.join('+');
+                  }}
+
+                  function matchShortcut(e, specs) {{
+                    if (!Array.isArray(specs)) return false;
+                    var hit = eventSpec(e);
+                    for (var i = 0; i < specs.length; i++) {{
+                      if (hit === normalizeShortcutSpec(specs[i])) return true;
+                    }}
+                    return false;
                   }}
 
                   function collectMarks() {{
@@ -1473,13 +1765,10 @@ def make_handler(app: App):
                   collectMarks();
 
                   document.addEventListener('keydown', function(e) {{
-                    var key = e.key || '';
-                    var lower = key.toLowerCase();
-                    var metaOrCtrl = !!(e.metaKey || e.ctrlKey);
                     var target = e.target;
                     var typing = isTypingTarget(target);
 
-                    if (metaOrCtrl && lower === 's') {{
+                    if (matchShortcut(e, detailShortcuts.save_note || [])) {{
                       e.preventDefault();
                       if (noteModal.style.display === 'flex') {{
                         noteModal.style.display = 'none';
@@ -1488,7 +1777,7 @@ def make_handler(app: App):
                       return;
                     }}
 
-                    if (metaOrCtrl && lower === 'f') {{
+                    if (matchShortcut(e, detailShortcuts.focus_search || [])) {{
                       e.preventDefault();
                       quickFindInput.focus();
                       quickFindInput.select();
@@ -1497,29 +1786,29 @@ def make_handler(app: App):
 
                     if (typing) return;
 
-                    if (lower === 'j') {{
+                    if (matchShortcut(e, detailShortcuts.next_mark || [])) {{
                       e.preventDefault();
                       moveMark(1);
                       return;
                     }}
-                    if (lower === 'z') {{
+                    if (matchShortcut(e, detailShortcuts.back_to_highlights || [])) {{
                       e.preventDefault();
                       window.location.href = '/highlights';
                       return;
                     }}
-                    if (lower === 'k') {{
+                    if (matchShortcut(e, detailShortcuts.prev_mark || [])) {{
                       e.preventDefault();
                       moveMark(-1);
                       return;
                     }}
-                    if (lower === 'h') {{
+                    if (matchShortcut(e, detailShortcuts.highlight || [])) {{
                       e.preventDefault();
                       currentSelection = resolveCurrentSelection();
                       if (!currentSelection) return;
                       submitAnnotation('');
                       return;
                     }}
-                    if (lower === 'm') {{
+                    if (matchShortcut(e, detailShortcuts.note || [])) {{
                       e.preventDefault();
                       currentSelection = resolveCurrentSelection();
                       if (!currentSelection) return;
@@ -1527,7 +1816,7 @@ def make_handler(app: App):
                       openNoteModal(entry && entry.note ? entry.note : '');
                       return;
                     }}
-                    if (key === 'Enter') {{
+                    if (matchShortcut(e, detailShortcuts.edit_note || [])) {{
                       e.preventDefault();
                       currentSelection = resolveCurrentSelection();
                       if (!currentSelection) return;
@@ -1535,7 +1824,7 @@ def make_handler(app: App):
                       openNoteModal(entry2 && entry2.note ? entry2.note : '');
                       return;
                     }}
-                    if (key === 'Delete' || key === 'Backspace') {{
+                    if (matchShortcut(e, detailShortcuts.delete_annotation || [])) {{
                       e.preventDefault();
                       deleteCurrentAnnotation();
                     }}

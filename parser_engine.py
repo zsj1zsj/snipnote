@@ -166,6 +166,59 @@ DEFAULT_PARSER_RULES: dict[str, Any] = {
             "image_drop_keywords": ["icon", "logo", "sprite", "avatar", "banner", "thumbnail"],
             "max_images": 1,
         },
+        "medium": {
+            "domains": ["medium.com"],
+            "primary_html_patterns": [
+                r"(?is)<article[^>]*>(.*?)</article>",
+                r"(?is)<main[^>]*>(.*?)</main>",
+                r"(?is)<div[^>]*class=[\"'][^\"']*(?:postArticle-content|pw-post-body-paragraph|section-content)[^\"']*[\"'][^>]*>(.*?)</div>",
+            ],
+            "drop_exact": [
+                "Sign up",
+                "Sign in",
+                "Share",
+                "Member-only story",
+                "--",
+            ],
+            "drop_patterns": [
+                r"^\s*\d+\s*$",
+                r"^\[[^\]]*\]\(/[^)]+\)$",
+                r"^Data Science Collective$",
+                r"^Advice, insights, and ideas from the Medium data science community$",
+                r"^Press enter or click to view image in full size$",
+                r"^Published in .+",
+                r"^Written by .+",
+                r"^Responses\s*\(",
+                r"^medium\.com\s+-",
+                r"^Help$",
+                r"^Status$",
+                r"^About$",
+                r"^Careers$",
+                r"^Press$",
+                r"^Blog$",
+                r"^Privacy$",
+                r"^Rules$",
+                r"^Terms$",
+                r"^Text to speech$",
+            ],
+            "stop_patterns": [
+                r"^Published in .+",
+                r"^Written by .+",
+                r"^Responses\s*\(",
+                r"^Help$",
+                r"^Status$",
+                r"^About$",
+                r"^Careers$",
+                r"^Press$",
+                r"^Blog$",
+                r"^Privacy$",
+                r"^Rules$",
+                r"^Terms$",
+                r"^Text to speech$",
+            ],
+            "image_drop_keywords": ["icon", "logo", "avatar", "badge", "glyph", "favicon", "emoji"],
+            "max_images": 3,
+        },
     },
 }
 
@@ -651,7 +704,69 @@ class YahooNewsJPRule(BaseSiteRule):
         return filtered[:max_images]
 
 
-RULES: list[BaseSiteRule] = [SolidotRule(), IfanrRule(), Playno1Rule(), BlogJavaRule(), YahooNewsJPRule()]
+class MediumRule(BaseSiteRule):
+    RULE_KEY = "medium"
+
+    def __init__(self):
+        domains = tuple(get_rule_list(self.RULE_KEY, "domains", ("medium.com",)))
+        super().__init__(domains)
+
+    def primary_blocks(self, raw_html: str) -> list[tuple[str, str]]:
+        patterns = get_rule_list(self.RULE_KEY, "primary_html_patterns")
+        for pat in patterns:
+            m = re.search(pat, raw_html)
+            if m:
+                blocks = fallback_extract_blocks(m.group(1))
+                if blocks:
+                    return blocks
+        return []
+
+    def clean_blocks(self, blocks: list[tuple[str, str]]) -> list[tuple[str, str]]:
+        drop_exact = set(get_rule_list(self.RULE_KEY, "drop_exact"))
+        drop_patterns = get_rule_list(self.RULE_KEY, "drop_patterns")
+        stop_patterns = get_rule_list(self.RULE_KEY, "stop_patterns")
+        result: list[tuple[str, str]] = []
+        for tag, text in blocks:
+            cleaned = re.sub(r"\s+", " ", (text or "")).strip()
+            if not cleaned:
+                continue
+            # Medium chrome often leaks as markdown-style relative links.
+            if re.match(r"^\[[^\]]*\]\(/[^)]+\)$", cleaned):
+                continue
+            if cleaned in drop_exact:
+                continue
+            if any(re.search(pat, cleaned, re.I) for pat in stop_patterns):
+                break
+            if any(re.search(pat, cleaned, re.I) for pat in drop_patterns):
+                continue
+            cleaned = re.sub(r"^\s*Press enter or click to view image in full size\s*", "", cleaned, flags=re.I)
+            if not cleaned:
+                continue
+            if is_too_short(cleaned, tag):
+                continue
+            result.append((tag, cleaned))
+        return result
+
+    def clean_images(self, images: list[str]) -> list[str]:
+        keywords = [k.lower() for k in get_rule_list(self.RULE_KEY, "image_drop_keywords")]
+        max_images = int(get_rule_config(self.RULE_KEY).get("max_images", 3))
+        filtered = []
+        for u in images:
+            lower = u.lower()
+            if any(k in lower for k in keywords):
+                continue
+            filtered.append(u)
+        return filtered[:max_images]
+
+
+RULES: list[BaseSiteRule] = [
+    SolidotRule(),
+    IfanrRule(),
+    Playno1Rule(),
+    BlogJavaRule(),
+    YahooNewsJPRule(),
+    MediumRule(),
+]
 
 
 def choose_rule(host: str) -> BaseSiteRule | None:

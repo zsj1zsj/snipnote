@@ -147,6 +147,59 @@
       ],
       "image_drop_keywords": ["icon", "logo", "sprite", "avatar", "banner", "thumbnail"],
       "max_images": 1
+    },
+    "medium": {
+      "domains": ["medium.com"],
+      "primary_html_patterns": [
+        "(?is)<article[^>]*>(.*?)</article>",
+        "(?is)<main[^>]*>(.*?)</main>",
+        "(?is)<div[^>]*class=[\"'][^\"']*(?:postArticle-content|pw-post-body-paragraph|section-content)[^\"']*[\"'][^>]*>(.*?)</div>"
+      ],
+      "drop_exact": [
+        "Sign up",
+        "Sign in",
+        "Share",
+        "Member-only story",
+        "--"
+      ],
+      "drop_patterns": [
+        "^\\s*\\d+\\s*$",
+        "^\\[[^\\]]*\\]\\(/[^\\)]+\\)$",
+        "^Data Science Collective$",
+        "^Advice, insights, and ideas from the Medium data science community$",
+        "^Press enter or click to view image in full size$",
+        "^Published in .+",
+        "^Written by .+",
+        "^Responses\\s*\\(",
+        "^medium\\.com\\s+-",
+        "^Help$",
+        "^Status$",
+        "^About$",
+        "^Careers$",
+        "^Press$",
+        "^Blog$",
+        "^Privacy$",
+        "^Rules$",
+        "^Terms$",
+        "^Text to speech$"
+      ],
+      "stop_patterns": [
+        "^Published in .+",
+        "^Written by .+",
+        "^Responses\\s*\\(",
+        "^Help$",
+        "^Status$",
+        "^About$",
+        "^Careers$",
+        "^Press$",
+        "^Blog$",
+        "^Privacy$",
+        "^Rules$",
+        "^Terms$",
+        "^Text to speech$"
+      ],
+      "image_drop_keywords": ["icon", "logo", "avatar", "badge", "glyph", "favicon", "emoji"],
+      "max_images": 3
     }
   }
 }

@@ -50,15 +50,19 @@ python3 webui.py --host 127.0.0.1 --port 8787
   - `J / K`：在高亮间向下/向上跳转
 - 全局快捷键：
   - `A`：快速跳转到“添加链接”页面
+- 快捷键映射来自配置文件：`shortcuts.json`
+  - 可按 `global` / `detail` 下的动作修改按键
+  - 修改后重启 `webui.py` 生效
 - 卡片标题可直接点击进入“查看并批注”页
 - 卡片支持删除按钮（删除摘录会联动删除其批注）
 - 图片默认缩略图展示，hover 可放大预览
+- 添加链接时，已摘录过的 URL 不允许重复保存（会提示并可跳转到已有卡片）
 
 ## 解析规则（配置化）
 
 - 规则引擎支持配置文件：`parser_rules.json`
 - 代码入口仍在：`parser_engine.py`（负责读取配置并执行规则）
-- 当前内置配置：`solidot.org`、`ifanr.com`、`playno1.com`、`blogjava.net`、`news.yahoo.co.jp`
+- 当前内置配置：`solidot.org`、`ifanr.com`、`playno1.com`、`blogjava.net`、`news.yahoo.co.jp`、`medium.com`
 - `news.yahoo.co.jp` 仍保留代码级特例：优先解析 `window.__PRELOADED_STATE__`，配置主要用于噪音过滤与图片策略
 - `economist.com` 需要屏蔽的脚本地址也已放入 `parser_rules.json > blocked_script_sources`
 
@@ -99,6 +103,8 @@ python3 webui.py --host 127.0.0.1 --port 8787
   - 重启服务后再浏览器强制刷新（`Cmd+Shift+R`）。
 - 为什么有些站点返回 `HTTP 403`？
   - 这通常是反爬/付费墙限制。系统会重试多组请求头并尝试特定站点策略，但无法保证绕过鉴权。
+- 已知 bug：进入 `/add-link` 页面时，URL 输入框偶发出现“看起来已聚焦但无法立即输入”的情况。
+  - 临时规避：手动点击一次 URL 输入框后可正常编辑。
 
 默认数据库路径：`data/readlite.db`
 
