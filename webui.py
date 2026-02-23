@@ -1817,10 +1817,12 @@ def make_handler(app: App):
 
         def handle_highlight_detail(self):
             parsed = urlparse(self.path)
+            query = parse_qs(parsed.query)
             try:
-                highlight_id = int(parse_qs(parsed.query).get("id", ["0"])[0])
+                highlight_id = int(query.get("id", ["0"])[0])
             except ValueError:
                 highlight_id = 0
+            keep_unread = query.get("keep_unread", ["0"])[0].strip() == "1"
             if highlight_id <= 0:
                 self.respond(HTTPStatus.BAD_REQUEST, page_layout("错误", "<h1>参数错误</h1>"))
                 return
@@ -1837,7 +1839,7 @@ def make_handler(app: App):
                 if row is None:
                     self.respond(HTTPStatus.NOT_FOUND, page_layout("错误", "<h1>摘录不存在</h1>"))
                     return
-                if int(row["is_read"] or 0) == 0:
+                if int(row["is_read"] or 0) == 0 and not keep_unread:
                     conn.execute("UPDATE highlights SET is_read = 1 WHERE id = ?", (highlight_id,))
                     conn.commit()
                     row = conn.execute(
@@ -1905,6 +1907,7 @@ def make_handler(app: App):
                     f"<a href='{safe_link}' target='_blank' rel='noopener noreferrer'>{safe_link}</a></p>"
                 )
             detail_return_to = f"/highlight?id={row['id']}"
+            detail_read_return_to = f"/highlight?id={row['id']}&keep_unread=1"
             interaction_html = f"""
                 <div class='card'>
                   <h2>交互批注</h2>
@@ -2249,7 +2252,7 @@ def make_handler(app: App):
                 "<button type='submit'>追加标签</button>"
                 "</form>"
                 "<div class='row-actions'>"
-                f"{read_button(row['id'], bool(row['is_read']), detail_return_to)}"
+                f"{read_button(row['id'], bool(row['is_read']), detail_read_return_to)}"
                 f"{favorite_button(row['id'], bool(row['favorite']), detail_return_to)}"
                 f"{delete_button(row['id'], '/highlights')}"
                 "</div>"
