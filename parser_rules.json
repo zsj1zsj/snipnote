@@ -1,0 +1,152 @@
+{
+  "blocked_script_sources": [
+    "https://wall-ui-cdn.p.aws.economist.com/latest/wall-ui.js",
+    "https://cdn.eu.amplitude.com/script/f3474234bacde7a4dcbceaf2e21dfbad.experiment.js"
+  ],
+  "rules": {
+    "solidot": {
+      "domains": ["solidot.org"],
+      "primary_html_patterns": [
+        "(?is)<div[^>]*class=[\"'][^\"']*p_mainnew[^\"']*[\"'][^>]*>(.*?)</div>",
+        "(?is)<div[^>]*class=[\"'][^\"']*content[^\"']*[\"'][^>]*>(.*?)</div>",
+        "(?is)<article[^>]*>(.*?)</article>"
+      ],
+      "drop_patterns": [
+        "发表于\\s+\\d{4}年\\d{2}月\\d{2}日",
+        "新浪微博分享",
+        "本站提到的所有注册商标",
+        "京ICP",
+        "备案号",
+        "举报电话",
+        "举报邮箱",
+        "www\\.solidot\\.org\\s+-"
+      ],
+      "image_drop_keywords": ["logo", "avatar", "icon", "wechat", "weibo", "rss"],
+      "max_images": 2
+    },
+    "ifanr": {
+      "domains": ["ifanr.com"],
+      "primary_html_patterns": [
+        "(?is)<article[^>]*>(.*?)</article>",
+        "(?is)<div[^>]*class=[\"'][^\"']*(?:post-content|article-content|single-content|c-single-content)[^\"']*[\"'][^>]*>(.*?)</div>",
+        "(?is)<section[^>]*class=[\"'][^\"']*(?:post-content|article-content|single-content)[^\"']*[\"'][^>]*>(.*?)</section>"
+      ],
+      "drop_patterns": [
+        "^\\s*登录\\s*$",
+        "^\\s*注册\\s*$",
+        "媒体品牌",
+        "制糖工厂",
+        "扫描小程序码",
+        "为您查询到.*篇文章",
+        "上一篇",
+        "小时前",
+        "爱范儿 App",
+        "爱范儿,?让未来触手可及",
+        "关注爱范儿微信号",
+        "关注玩物志微信号",
+        "小程序开发快人一步",
+        "微信新商业服务平台",
+        "京ICP",
+        "备案号",
+        "举报电话",
+        "www\\.ifanr\\.com\\s+-",
+        "^\\s*图片(\\s*\\d+)?\\s*$"
+      ],
+      "image_drop_keywords": ["logo", "icon", "avatar", "wechat", "weibo", "favicon", "qrcode"],
+      "max_images": 6
+    },
+    "playno1": {
+      "domains": ["playno1.com"],
+      "primary_html_patterns": [
+        "(?is)<div[^>]*id=[\"']?article_content[\"']?[^>]*>(.*?)</div>",
+        "(?is)<td[^>]*id=[\"']?article_content[\"']?[^>]*>(.*?)</td>",
+        "(?is)<div[^>]*class=[\"'][^\"']*(?:article-content|article|content|t_f)[^\"']*[\"'][^>]*>(.*?)</div>",
+        "(?is)<article[^>]*>(.*?)</article>"
+      ],
+      "drop_patterns": [
+        "^\\s*登录\\s*$",
+        "^\\s*注册\\s*$",
+        "^\\s*返回首页\\s*$",
+        "^\\s*免责声明\\s*$",
+        "^\\s*上一篇\\s*$",
+        "^\\s*下一篇\\s*$",
+        "^\\s*相关阅读\\s*$",
+        "Powered by Discuz",
+        "Copyright",
+        "广告",
+        "本站",
+        "forbid\\.htm",
+        "请先.*验证"
+      ],
+      "request_headers": {
+        "Referer": "http://www.playno1.com/forbid.htm",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1"
+      },
+      "image_drop_keywords": ["logo", "icon", "avatar", "ads", "banner", "qrcode"],
+      "max_images": 12
+    },
+    "blogjava": {
+      "domains": ["blogjava.net"],
+      "primary_html_patterns": [
+        "(?is)<div[^>]*id=[\"']?(?:cnblogs_post_body|blog_post_body|BlogPostContent|post_body|postBody)[\"']?[^>]*>(.*?)</div>",
+        "(?is)<div[^>]*class=[\"'][^\"']*(?:postCon|postBody|post-body|entry-content|article-content)[^\"']*[\"'][^>]*>(.*?)</div>",
+        "(?is)<div[^>]*class=[\"'][^\"']*post[^\"']*[\"'][^>]*>.*?<div[^>]*class=[\"'][^\"']*(?:postBody|postCon|entry)[^\"']*[\"'][^>]*>(.*?)</div>.*?</div>"
+      ],
+      "drop_exact": [
+        "首页",
+        "联系",
+        "管理",
+        "我的随笔",
+        "我的评论",
+        "我的参与",
+        "最新评论",
+        "给我留言",
+        "查看公开留言",
+        "查看私人留言"
+      ],
+      "drop_patterns": [
+        "\\(rss\\)\\s*$",
+        "^\\d{4}年\\d{1,2}月\\s*\\(\\d+\\)\\s*$",
+        "^www\\.blogjava\\.net\\s+-",
+        "^paulwong\\s*$",
+        "聚合",
+        "^\\s*图片(\\s*\\d+)?\\s*$"
+      ],
+      "image_drop_keywords": ["logo", "avatar", "icon", "rss", "banner", "ads", "qrcode"],
+      "max_images": 3
+    },
+    "yahoo_news_jp": {
+      "domains": ["news.yahoo.co.jp"],
+      "primary_html_patterns": [
+        "(?is)<article[^>]*>(.*?)</article>",
+        "(?is)<div[^>]*class=[\"'][^\"']*(?:article|Article|articleBody|mainContents|contentsBody)[^\"']*[\"'][^>]*>(.*?)</div>",
+        "(?is)<main[^>]*>(.*?)</main>"
+      ],
+      "drop_patterns": [
+        "^\\s*\\d+\\s*コメント",
+        "^\\s*\\d{1,2}/\\d{1,2}\\([^)]+\\)\\s*\\d{1,2}:\\d{2}\\s*配信\\s*$",
+        "^最終更新[:：]",
+        "アクセスランキング",
+        "Yahoo!ニュース オリジナル",
+        "雑誌アクセスランキング",
+        "^\\[\\]\\(https?://(x\\.com|www\\.facebook\\.com)/",
+        "^\\[日テレNEWS NNN\\]\\(/media/",
+        "^\\*{6,}",
+        "^\\s*画像\\s*",
+        "^【画像】",
+        "^news\\.yahoo\\.co\\.jp\\s+-",
+        "^日テレNEWS NNN$"
+      ],
+      "stop_patterns": [
+        "アクセスランキング",
+        "Yahoo!ニュース オリジナル",
+        "雑誌アクセスランキング",
+        "関連記事"
+      ],
+      "image_drop_keywords": ["icon", "logo", "sprite", "avatar", "banner", "thumbnail"],
+      "max_images": 1
+    }
+  }
+}
