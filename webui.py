@@ -899,6 +899,16 @@ def page_layout(title: str, body: str) -> str:
       padding: 2px 8px;
       margin-left: 6px;
     }}
+    .tag-read {{
+      display: inline-block;
+      font-size: 0.82rem;
+      color: #0b6bcb;
+      background: #eaf4ff;
+      border: 1px solid #b9d9ff;
+      border-radius: 999px;
+      padding: 2px 8px;
+      margin-left: 6px;
+    }}
     .inline-form {{
       display: grid;
       grid-template-columns: 1fr auto;
@@ -1357,7 +1367,7 @@ def row_meta(row: sqlite3.Row) -> str:
     src = f"{row['author']} - {row['source']}".strip(" -")
     tag_value = row["tags"] if "tags" in row.keys() else ""
     tag = render_tags_html(tag_value)
-    read_tag = "<span class='tag'>已读</span>" if ("is_read" in row.keys() and int(row["is_read"] or 0) == 1) else ""
+    read_tag = "<span class='tag-read'>已读</span>" if ("is_read" in row.keys() and int(row["is_read"] or 0) == 1) else ""
     return f"{html.escape(src) if src else 'Unknown'}{read_tag}{tag}"
 
 
@@ -1604,6 +1614,8 @@ def make_handler(app: App):
             for row in due:
                 title_label = card_title_label(row)
                 body_md = strip_leading_duplicate_title(row["text"], row["source"] if "source" in row.keys() else "")
+                preview = markdown_preview_text(body_md, 100)
+                preview_html = f"<p>{render_inline(preview)}</p>" if preview else "<p></p>"
                 actions = (
                     "<div class='row-actions'>"
                     f"<a href='/highlight?id={row['id']}'>查看并批注</a>"
@@ -1614,7 +1626,7 @@ def make_handler(app: App):
                 )
                 cards.append(
                     f"<div class='card'><h2>{detail_title_link(row['id'], title_label)}</h2>"
-                    f"<div class='md'>{render_markdown(body_md)}</div><p class='meta'>{row_meta(row)}</p>{actions}</div>"
+                    f"<div class='md'>{preview_html}</div><p class='meta'>{row_meta(row)}</p>{actions}</div>"
                 )
             due_html = "".join(cards) if cards else "<div class='card'><p>今天没有到期摘录。</p></div>"
             sort_form = (
