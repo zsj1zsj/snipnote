@@ -64,6 +64,52 @@ class ArticleExtractor(HTMLParser):
         self.title_chunks: list[str] = []
         self.current_chunks: list[str] = []
         self.blocks: list[tuple[str, str]] = []
+        self.current_code_lang = ""
+
+    def _detect_code_lang(self, attrs) -> str:
+        attr_map = {k.lower(): (v or "") for k, v in attrs}
+        probe = " ".join(
+            [
+                attr_map.get("class", ""),
+                attr_map.get("data-lang", ""),
+                attr_map.get("lang", ""),
+            ]
+        ).lower()
+        if not probe:
+            return ""
+        m = re.search(r"(?:language|lang|brush)[:\s-]+([a-z0-9+#]+)", probe)
+        if m:
+            lang = m.group(1).lower()
+            if lang == "js":
+                return "javascript"
+            if lang == "ts":
+                return "typescript"
+            if lang in {"shell", "sh"}:
+                return "bash"
+            if lang in {"c#", "cs"}:
+                return "csharp"
+            if lang == "c++":
+                return "cpp"
+            return lang
+        tokens = set(re.findall(r"[a-z0-9+#]+", probe))
+        aliases = {
+            "java": {"java"},
+            "python": {"python", "py"},
+            "javascript": {"javascript", "js"},
+            "typescript": {"typescript", "ts"},
+            "bash": {"bash", "shell", "sh"},
+            "json": {"json"},
+            "xml": {"xml", "html"},
+            "sql": {"sql"},
+            "go": {"go", "golang"},
+            "rust": {"rust"},
+            "csharp": {"csharp", "cs", "c#"},
+            "cpp": {"cpp", "c++"},
+        }
+        for lang, keys in aliases.items():
+            if tokens & keys:
+                return lang
+        return ""
 
     def _is_noise_container(self, tag: str, attrs) -> bool:
         if tag in {"nav", "footer", "aside"}:
@@ -108,6 +154,7 @@ class ArticleExtractor(HTMLParser):
         if tag == "pre":
             self.current_tag = "pre"
             self.current_chunks = []
+            self.current_code_lang = self._detect_code_lang(attrs)
             return
         if self.current_tag and tag in {"strong", "b"}:
             self.current_chunks.append("**")
@@ -135,9 +182,11 @@ class ArticleExtractor(HTMLParser):
         if tag == "pre" and self.current_tag == "pre":
             text = "".join(self.current_chunks).replace("\r\n", "\n").replace("\r", "\n").strip("\n")
             if text.strip():
-                self.blocks.append(("pre", text))
+                code_tag = f"pre:{self.current_code_lang}" if self.current_code_lang else "pre"
+                self.blocks.append((code_tag, text))
             self.current_tag = ""
             self.current_chunks = []
+            self.current_code_lang = ""
             return
         if self.current_tag and tag in {"strong", "b"}:
             self.current_chunks.append("**")
@@ -200,6 +249,37 @@ class BaseSiteRule:
 
     def min_blocks_error(self) -> str:
         return "页面中没有可提取的正文段落"
+
+
+def extract_balanced_tag_inner(raw_html: str, start_match: re.Match) -> str | None:
+    tag = (start_match.group("tag") or "").lower()
+    if not tag:
+        return None
+    start = start_match.end()
+    token_re = re.compile(rf"(?is)</?{re.escape(tag)}\b[^>]*>")
+    depth = 1
+    for token in token_re.finditer(raw_html, start):
+        token_text = token.group(0)
+        is_end = token_text.startswith("</")
+        is_self_closing = token_text.endswith("/>")
+        if is_end:
+            depth -= 1
+            if depth == 0:
+                return raw_html[start:token.start()]
+        elif not is_self_closing:
+            depth += 1
+    return None
+
+
+def extract_container_by_id(raw_html: str, container_id: str) -> str | None:
+    cid = re.escape(container_id)
+    pat = re.compile(
+        rf'(?is)<(?P<tag>[a-z0-9]+)\b[^>]*\bid=["\']?{cid}["\']?[^>]*>',
+    )
+    m = pat.search(raw_html)
+    if not m:
+        return None
+    return extract_balanced_tag_inner(raw_html, m)
 
 
 def action_blog_semantic_filter(blocks: list[tuple[str, str]]) -> list[tuple[str, str]]:
@@ -291,6 +371,12 @@ class ConfigSiteRule(BaseSiteRule):
             blocks = action(raw_html)
             if blocks:
                 return blocks
+        for container_id in self.cfg.get("primary_container_ids", []) or []:
+            container_html = extract_container_by_id(raw_html, str(container_id))
+            if container_html:
+                blocks = fallback_extract_blocks(container_html)
+                if blocks:
+                    return blocks
         patterns = self.cfg.get("primary_html_patterns", []) or []
         for pat in patterns:
             m = re.search(str(pat), raw_html)
@@ -309,7 +395,8 @@ class ConfigSiteRule(BaseSiteRule):
 
         result: list[tuple[str, str]] = []
         for tag, text in blocks:
-            if tag == "pre":
+            is_pre = tag == "pre" or str(tag).startswith("pre:")
+            if is_pre:
                 cleaned = (text or "").replace("\r\n", "\n").replace("\r", "\n").strip("\n")
             else:
                 cleaned = re.sub(r"\s+", " ", (text or "")).strip()
@@ -333,7 +420,7 @@ class ConfigSiteRule(BaseSiteRule):
             cleaned = cleaned.strip()
             if not cleaned:
                 continue
-            if tag != "pre" and is_too_short(cleaned, tag):
+            if (not is_pre) and is_too_short(cleaned, tag):
                 continue
             result.append((tag, cleaned))
 
@@ -524,8 +611,14 @@ def parse_link_to_markdown(url: str, timeout: int = 10) -> ParseOutput:
             lines.append(f"### {chunk}")
         elif tag == "h3":
             lines.append(f"#### {chunk}")
-        elif tag == "pre":
-            lines.append("```")
+        elif tag == "pre" or str(tag).startswith("pre:"):
+            lang = "java"
+            if ":" in str(tag):
+                parsed_lang = str(tag).split(":", 1)[1].strip().lower()
+                if parsed_lang:
+                    lang = parsed_lang
+            fence = f"```{lang}" if lang else "```"
+            lines.append(fence)
             lines.append(chunk)
             lines.append("```")
         elif tag == "li":
@@ -897,20 +990,57 @@ def body_to_blocks(body: str) -> list[tuple[str, str]]:
 
 def fallback_extract_blocks(raw_html: str) -> list[tuple[str, str]]:
     content = re.sub(r"(?is)<(script|style|noscript)[^>]*>.*?</\1>", " ", raw_html)
-    code_blocks: list[str] = []
+    code_blocks: list[tuple[str, str]] = []
+
+    def detect_lang_from_attr(attr_text: str) -> str:
+        probe = (attr_text or "").lower()
+        m = re.search(r"(?:language|lang|brush)[:\s-]+([a-z0-9+#]+)", probe)
+        if m:
+            lang = m.group(1).lower()
+            if lang == "js":
+                return "javascript"
+            if lang == "ts":
+                return "typescript"
+            if lang in {"shell", "sh"}:
+                return "bash"
+            if lang in {"c#", "cs"}:
+                return "csharp"
+            if lang == "c++":
+                return "cpp"
+            return lang
+        tokens = set(re.findall(r"[a-z0-9+#]+", probe))
+        aliases = {
+            "java": {"java"},
+            "python": {"python", "py"},
+            "javascript": {"javascript", "js"},
+            "typescript": {"typescript", "ts"},
+            "bash": {"bash", "shell", "sh"},
+            "json": {"json"},
+            "xml": {"xml", "html"},
+            "sql": {"sql"},
+            "go": {"go", "golang"},
+            "rust": {"rust"},
+            "csharp": {"csharp", "cs", "c#"},
+            "cpp": {"cpp", "c++"},
+        }
+        for lang, keys in aliases.items():
+            if tokens & keys:
+                return lang
+        return ""
 
     def pre_repl(match: re.Match) -> str:
-        inner = match.group(1)
+        attrs = match.group(1) or ""
+        inner = match.group(2)
         inner = re.sub(r"(?is)<\s*br\s*/?\s*>", "\n", inner)
         inner = re.sub(r"(?is)</p\s*>", "\n", inner)
         inner = re.sub(r"(?is)<[^>]+>", "", inner)
         code = html_std.unescape(inner).replace("\r\n", "\n").replace("\r", "\n").strip("\n")
         if not code.strip():
             return "\n"
-        code_blocks.append(code)
+        code_blocks.append((detect_lang_from_attr(attrs), code))
         return f"\n__CODE_BLOCK_{len(code_blocks)-1}__\n"
 
-    content = re.sub(r"(?is)<pre[^>]*>(.*?)</pre>", pre_repl, content)
+    content = re.sub(r"(?is)<pre([^>]*)>(.*?)</pre>", pre_repl, content)
     main_match = re.search(r"(?is)<(article|main)[^>]*>(.*?)</\1>", content)
     if main_match:
         content = main_match.group(2)
@@ -937,7 +1067,9 @@ def fallback_extract_blocks(raw_html: str) -> list[tuple[str, str]]:
         if code_m:
             idx = int(code_m.group(1))
             if 0 <= idx < len(code_blocks):
-                lines.append(("pre", code_blocks[idx][:8000]))
+                lang, code_text = code_blocks[idx]
+                code_tag = f"pre:{lang}" if lang else "pre"
+                lines.append((code_tag, code_text[:8000]))
             continue
         cleaned = re.sub(r"\*{3,}", "**", cleaned)
         cleaned = re.sub(r"\*{2}\s+\*{2}", "", cleaned).strip()

@@ -591,21 +591,27 @@ def render_markdown(text: str, keyword: str = "", selected_quotes: list[str] | N
     in_list = False
     in_code = False
     code_lines: list[str] = []
+    code_lang = ""
     i = 0
     while i < len(lines):
         line = lines[i].rstrip()
-        if re.match(r"^```", line.strip()):
+        fence_match = re.match(r"^```([a-zA-Z0-9_+#-]*)\s*$", line.strip())
+        if fence_match:
             if in_list:
                 out.append("</ul>")
                 in_list = False
             if not in_code:
                 in_code = True
                 code_lines = []
+                code_lang = (fence_match.group(1) or "").strip().lower() or "java"
             else:
                 escaped_code = html.escape("\n".join(code_lines), quote=False)
-                out.append(f"<pre><code>{escaped_code}</code></pre>")
+                cls = f' class="language-{html.escape(code_lang, quote=True)}"' if code_lang else ""
+                data_lang = f' data-lang="{html.escape(code_lang, quote=True)}"' if code_lang else ""
+                out.append(f"<pre{data_lang}><code{cls}>{escaped_code}</code></pre>")
                 in_code = False
                 code_lines = []
+                code_lang = ""
             i += 1
             continue
         if in_code:
@@ -673,7 +679,9 @@ def render_markdown(text: str, keyword: str = "", selected_quotes: list[str] | N
         out.append("</ul>")
     if in_code:
         escaped_code = html.escape("\n".join(code_lines), quote=False)
-        out.append(f"<pre><code>{escaped_code}</code></pre>")
+        cls = f' class="language-{html.escape(code_lang, quote=True)}"' if code_lang else ""
+        data_lang = f' data-lang="{html.escape(code_lang, quote=True)}"' if code_lang else ""
+        out.append(f"<pre{data_lang}><code{cls}>{escaped_code}</code></pre>")
     return "".join(out) if out else "<p></p>"
 
 
@@ -686,6 +694,7 @@ def page_layout(title: str, body: str) -> str:
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{html.escape(title)}</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github-dark.min.css" />
   <style>
     :root {{
       --bg: #f5f4ee;
@@ -745,6 +754,7 @@ def page_layout(title: str, body: str) -> str:
       border-radius: 5px;
     }}
     .md pre {{
+      position: relative;
       margin: 8px 0;
       padding: 10px 12px;
       background: #0f172a;
@@ -752,6 +762,16 @@ def page_layout(title: str, body: str) -> str:
       border-radius: 10px;
       overflow-x: auto;
       border: 1px solid #1f2937;
+    }}
+    .md pre[data-lang]::before {{
+      content: attr(data-lang);
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      font-size: 11px;
+      line-height: 1;
+      color: #94a3b8;
+      text-transform: lowercase;
     }}
     .md pre code {{
       background: transparent;
@@ -763,6 +783,10 @@ def page_layout(title: str, body: str) -> str:
       display: block;
       line-height: 1.5;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }}
+    .md pre code.hljs {{
+      background: transparent;
+      padding: 0;
     }}
     .md mark {{
       background: #fff3a2;
@@ -955,9 +979,15 @@ def page_layout(title: str, body: str) -> str:
     </div>
     {body}
   </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js"></script>
   <script>
     (function () {{
       var globalShortcuts = {global_shortcuts_json};
+      if (window.hljs) {{
+        document.querySelectorAll('pre code').forEach(function (el) {{
+          window.hljs.highlightElement(el);
+        }});
+      }}
 
       function isTypingTarget(el) {{
         if (!el) return false;

@@ -230,6 +230,99 @@
       ],
       "image_drop_keywords": ["icon", "logo", "avatar", "badge", "glyph", "favicon", "emoji"],
       "max_images": 3
+    },
+    "cnblogs": {
+      "domains": ["cnblogs.com", "www.cnblogs.com"],
+      "primary_container_ids": ["cnblogs_post_body", "post_detail"],
+      "primary_html_patterns": [
+        "(?is)<div[^>]*id=[\"']?cnblogs_post_body[\"']?[^>]*>(.*?)</div>",
+        "(?is)<div[^>]*class=[\"'][^\"']*(?:postBody|post-body|entry-content|article-content)[^\"']*[\"'][^>]*>(.*?)</div>",
+        "(?is)<article[^>]*>(.*?)</article>",
+        "(?is)<main[^>]*>(.*?)</main>"
+      ],
+      "drop_exact": [
+        "会员",
+        "周边",
+        "新闻",
+        "博问",
+        "闪存",
+        "众包",
+        "赞助商",
+        "注册",
+        "登录",
+        "我的博客",
+        "我的园子",
+        "账号设置",
+        "会员中心",
+        "博客园",
+        "首页",
+        "新随笔",
+        "联系",
+        "管理",
+        "订阅",
+        "收藏",
+        "举报",
+        "刷新页面",
+        "返回顶部"
+      ],
+      "drop_patterns": [
+        "^\\[[^\\]]*\\]\\(javascript:void\\(0\\)\\)$",
+        "^\\[[^\\]]*\\]\\(#.*\\)$",
+        "^\\[[^\\]]*\\]\\(/[^\\)]+\\)$",
+        "^\\[\\]\\(https?://[^\\)]+\\)$",
+        "^(会员|周边|新闻|博问|闪存|众包|赞助商|注册|登录)$",
+        "^(我的博客|我的园子|账号设置|会员中心)$",
+        "^(首页|新随笔|联系|管理|订阅)$",
+        "^(收藏|举报|刷新页面|返回顶部)$",
+        "^浙公网安备",
+        "^浙ICP备",
+        "^www\\.cnblogs\\.com\\s+-",
+        "^博客园$",
+        "^Carey_ccl$",
+        "^\\s*图片(\\s*\\d+)?\\s*$"
+      ],
+      "stop_patterns": [
+        "^浙公网安备",
+        "^浙ICP备",
+        "^www\\.cnblogs\\.com\\s+-",
+        "^博客园$"
+      ],
+      "image_drop_keywords": ["logo", "icon", "avatar", "favicon", "banner", "ads", "qrcode"],
+      "max_images": 2
+    },
+    "liaoxuefeng": {
+      "domains": ["liaoxuefeng.com", "www.liaoxuefeng.com"],
+      "primary_container_ids": ["gsi-chapter-content", "gsi-chapter"],
+      "primary_html_patterns": [
+        "(?is)<div[^>]*id=[\"']?gsi-chapter-content[\"']?[^>]*>(.*?)</div>",
+        "(?is)<div[^>]*id=[\"']?gsi-chapter[\"']?[^>]*>(.*?)</div>",
+        "(?is)<main[^>]*>(.*?)</main>"
+      ],
+      "drop_patterns": [
+        "^\\s*Comments\\s*$",
+        "^\\s*Loading comments\\.\\.\\.\\s*$",
+        "^\\s*Fail to load comments\\..*$",
+        "^\\s*Comments loaded\\..*$",
+        "^\\s*To post a comment, please\\s*$",
+        "^\\s*Sign In\\s*$",
+        "^\\s*Sign Out\\s*$",
+        "^\\s*Read More\\s*$",
+        "^\\s*Collapse\\s*$",
+        "^\\s*上一页\\s*$",
+        "^\\s*下一页\\s*$",
+        "^\\s*泛型\\s*$",
+        "^\\s*使用泛型\\s*$",
+        "^\\s*廖雪峰\\s*$",
+        "^\\s*资深软件开发工程师.*$",
+        "^\\s*liaoxuefeng\\.com\\s+-\\s*$"
+      ],
+      "stop_patterns": [
+        "^\\s*Comments\\s*$",
+        "^\\s*oauth comment\\s*$",
+        "^\\s*footer\\s*$"
+      ],
+      "image_drop_keywords": ["logo", "icon", "avatar", "favicon", "qlogo", "qrcode"],
+      "max_images": 3
     }
   }
 }

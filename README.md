@@ -63,8 +63,10 @@ python3 webui.py --host 127.0.0.1 --port 8787
 - 规则引擎支持配置文件：`parser_rules.json`
 - 代码入口仍在：`parser_engine.py`（仅保留通用解析流程与通用动作）
 - 各域名规则全部在 `parser_rules.json` 中维护（`parser_engine.py` 不再内置站点规则）
-- 当前内置配置：`solidot.org`、`ifanr.com`、`playno1.com`、`blogjava.net`、`news.yahoo.co.jp`、`medium.com`
+- 当前内置配置：`solidot.org`、`ifanr.com`、`playno1.com`、`blogjava.net`、`news.yahoo.co.jp`、`medium.com`、`cnblogs.com`、`liaoxuefeng.com`
 - `economist.com` 需要屏蔽的脚本地址也已放入 `parser_rules.json > blocked_script_sources`
+- 代码块会尽量保留语言标记（例如 ` ```java `），并在页面渲染时挂载 `language-xxx` class
+- 若代码块未识别到语言，会默认按 `java` 处理
 
 ### 如何新增/调整站点规则
 
@@ -110,6 +112,8 @@ python3 webui.py --host 127.0.0.1 --port 8787
   - 这通常是反爬/付费墙限制。系统会重试多组请求头并尝试特定站点策略，但无法保证绕过鉴权。
 - 已知 bug：进入 `/add-link` 页面时，URL 输入框偶发出现“看起来已聚焦但无法立即输入”的情况。
   - 临时规避：手动点击一次 URL 输入框后可正常编辑。
+- 已知 bug：部分页面（例如 `liaoxuefeng.com`）中“未显式标注语言”的代码块，偶发被误判为 `javascript`，未稳定按默认 `java` 渲染。
+  - 临时规避：在原文代码块中显式 language class（如 `language-java`）时可正常高亮。
 
 默认数据库路径：`data/readlite.db`
 
