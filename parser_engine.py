@@ -17,209 +17,8 @@ class ParseOutput:
 
 
 DEFAULT_PARSER_RULES: dict[str, Any] = {
-    "blocked_script_sources": [
-        "https://wall-ui-cdn.p.aws.economist.com/latest/wall-ui.js",
-        "https://cdn.eu.amplitude.com/script/f3474234bacde7a4dcbceaf2e21dfbad.experiment.js",
-    ],
-    "rules": {
-        "solidot": {
-            "domains": ["solidot.org"],
-            "primary_html_patterns": [
-                r"(?is)<div[^>]*class=[\"'][^\"']*p_mainnew[^\"']*[\"'][^>]*>(.*?)</div>",
-                r"(?is)<div[^>]*class=[\"'][^\"']*content[^\"']*[\"'][^>]*>(.*?)</div>",
-                r"(?is)<article[^>]*>(.*?)</article>",
-            ],
-            "drop_patterns": [
-                r"发表于\s+\d{4}年\d{2}月\d{2}日",
-                r"新浪微博分享",
-                r"本站提到的所有注册商标",
-                r"京ICP",
-                r"备案号",
-                r"举报电话",
-                r"举报邮箱",
-                r"www\.solidot\.org\s+-",
-            ],
-            "image_drop_keywords": ["logo", "avatar", "icon", "wechat", "weibo", "rss"],
-            "max_images": 2,
-        },
-        "ifanr": {
-            "domains": ["ifanr.com"],
-            "primary_html_patterns": [
-                r"(?is)<article[^>]*>(.*?)</article>",
-                r"(?is)<div[^>]*class=[\"'][^\"']*(?:post-content|article-content|single-content|c-single-content)[^\"']*[\"'][^>]*>(.*?)</div>",
-                r"(?is)<section[^>]*class=[\"'][^\"']*(?:post-content|article-content|single-content)[^\"']*[\"'][^>]*>(.*?)</section>",
-            ],
-            "drop_patterns": [
-                r"^\s*登录\s*$",
-                r"^\s*注册\s*$",
-                r"媒体品牌",
-                r"制糖工厂",
-                r"扫描小程序码",
-                r"为您查询到.*篇文章",
-                r"上一篇",
-                r"小时前",
-                r"爱范儿 App",
-                r"爱范儿,?让未来触手可及",
-                r"关注爱范儿微信号",
-                r"关注玩物志微信号",
-                r"小程序开发快人一步",
-                r"微信新商业服务平台",
-                r"京ICP",
-                r"备案号",
-                r"举报电话",
-                r"www\.ifanr\.com\s+-",
-                r"^\s*图片(\s*\d+)?\s*$",
-            ],
-            "image_drop_keywords": ["logo", "icon", "avatar", "wechat", "weibo", "favicon", "qrcode"],
-            "max_images": 6,
-        },
-        "playno1": {
-            "domains": ["playno1.com"],
-            "primary_html_patterns": [
-                r"(?is)<div[^>]*id=[\"']?article_content[\"']?[^>]*>(.*?)</div>",
-                r"(?is)<td[^>]*id=[\"']?article_content[\"']?[^>]*>(.*?)</td>",
-                r"(?is)<div[^>]*class=[\"'][^\"']*(?:article-content|article|content|t_f)[^\"']*[\"'][^>]*>(.*?)</div>",
-                r"(?is)<article[^>]*>(.*?)</article>",
-            ],
-            "drop_patterns": [
-                r"^\s*登录\s*$",
-                r"^\s*注册\s*$",
-                r"^\s*返回首页\s*$",
-                r"^\s*免责声明\s*$",
-                r"^\s*上一篇\s*$",
-                r"^\s*下一篇\s*$",
-                r"^\s*相关阅读\s*$",
-                r"Powered by Discuz",
-                r"Copyright",
-                r"广告",
-                r"本站",
-                r"forbid\.htm",
-                r"请先.*验证",
-            ],
-            "request_headers": {
-                "Referer": "http://www.playno1.com/forbid.htm",
-                "DNT": "1",
-                "Connection": "keep-alive",
-                "Upgrade-Insecure-Requests": "1",
-            },
-            "image_drop_keywords": ["logo", "icon", "avatar", "ads", "banner", "qrcode"],
-            "max_images": 12,
-        },
-        "blogjava": {
-            "domains": ["blogjava.net"],
-            "primary_html_patterns": [
-                r"(?is)<div[^>]*id=[\"']?(?:cnblogs_post_body|blog_post_body|BlogPostContent|post_body|postBody)[\"']?[^>]*>(.*?)</div>",
-                r"(?is)<div[^>]*class=[\"'][^\"']*(?:postCon|postBody|post-body|entry-content|article-content)[^\"']*[\"'][^>]*>(.*?)</div>",
-                r"(?is)<div[^>]*class=[\"'][^\"']*post[^\"']*[\"'][^>]*>.*?<div[^>]*class=[\"'][^\"']*(?:postBody|postCon|entry)[^\"']*[\"'][^>]*>(.*?)</div>.*?</div>",
-            ],
-            "drop_exact": [
-                "首页",
-                "联系",
-                "管理",
-                "我的随笔",
-                "我的评论",
-                "我的参与",
-                "最新评论",
-                "给我留言",
-                "查看公开留言",
-                "查看私人留言",
-            ],
-            "drop_patterns": [
-                r"\(rss\)\s*$",
-                r"^\d{4}年\d{1,2}月\s*\(\d+\)\s*$",
-                r"^www\.blogjava\.net\s+-",
-                r"^paulwong\s*$",
-                r"聚合",
-                r"^\s*图片(\s*\d+)?\s*$",
-            ],
-            "image_drop_keywords": ["logo", "avatar", "icon", "rss", "banner", "ads", "qrcode"],
-            "max_images": 3,
-        },
-        "yahoo_news_jp": {
-            "domains": ["news.yahoo.co.jp"],
-            "primary_html_patterns": [
-                r"(?is)<article[^>]*>(.*?)</article>",
-                r"(?is)<div[^>]*class=[\"'][^\"']*(?:article|Article|articleBody|mainContents|contentsBody)[^\"']*[\"'][^>]*>(.*?)</div>",
-                r"(?is)<main[^>]*>(.*?)</main>",
-            ],
-            "drop_patterns": [
-                r"^\s*\d+\s*コメント",
-                r"^\s*\d{1,2}/\d{1,2}\([^)]+\)\s*\d{1,2}:\d{2}\s*配信\s*$",
-                r"^最終更新[:：]",
-                r"アクセスランキング",
-                r"Yahoo!ニュース オリジナル",
-                r"雑誌アクセスランキング",
-                r"^\[\]\(https?://(x\.com|www\.facebook\.com)/",
-                r"^\[日テレNEWS NNN\]\(/media/",
-                r"^\*{6,}",
-                r"^\s*画像\s*",
-                r"^【画像】",
-                r"^news\.yahoo\.co\.jp\s+-",
-                r"^日テレNEWS NNN$",
-            ],
-            "stop_patterns": [
-                r"アクセスランキング",
-                r"Yahoo!ニュース オリジナル",
-                r"雑誌アクセスランキング",
-                r"関連記事",
-            ],
-            "image_drop_keywords": ["icon", "logo", "sprite", "avatar", "banner", "thumbnail"],
-            "max_images": 1,
-        },
-        "medium": {
-            "domains": ["medium.com"],
-            "primary_html_patterns": [
-                r"(?is)<article[^>]*>(.*?)</article>",
-                r"(?is)<main[^>]*>(.*?)</main>",
-                r"(?is)<div[^>]*class=[\"'][^\"']*(?:postArticle-content|pw-post-body-paragraph|section-content)[^\"']*[\"'][^>]*>(.*?)</div>",
-            ],
-            "drop_exact": [
-                "Sign up",
-                "Sign in",
-                "Share",
-                "Member-only story",
-                "--",
-            ],
-            "drop_patterns": [
-                r"^\s*\d+\s*$",
-                r"^\[[^\]]*\]\(/[^)]+\)$",
-                r"^Data Science Collective$",
-                r"^Advice, insights, and ideas from the Medium data science community$",
-                r"^Press enter or click to view image in full size$",
-                r"^Published in .+",
-                r"^Written by .+",
-                r"^Responses\s*\(",
-                r"^medium\.com\s+-",
-                r"^Help$",
-                r"^Status$",
-                r"^About$",
-                r"^Careers$",
-                r"^Press$",
-                r"^Blog$",
-                r"^Privacy$",
-                r"^Rules$",
-                r"^Terms$",
-                r"^Text to speech$",
-            ],
-            "stop_patterns": [
-                r"^Published in .+",
-                r"^Written by .+",
-                r"^Responses\s*\(",
-                r"^Help$",
-                r"^Status$",
-                r"^About$",
-                r"^Careers$",
-                r"^Press$",
-                r"^Blog$",
-                r"^Privacy$",
-                r"^Rules$",
-                r"^Terms$",
-                r"^Text to speech$",
-            ],
-            "image_drop_keywords": ["icon", "logo", "avatar", "badge", "glyph", "favicon", "emoji"],
-            "max_images": 3,
-        },
-    },
+    "blocked_script_sources": [],
+    "rules": {},
 }
 
 
@@ -250,24 +49,6 @@ def load_parser_rules() -> dict[str, Any]:
 
 PARSER_RULES = load_parser_rules()
 BLOCKED_SCRIPT_SOURCES = tuple(PARSER_RULES.get("blocked_script_sources", []))
-
-
-def get_rule_config(rule_key: str) -> dict[str, Any]:
-    rules = PARSER_RULES.get("rules", {})
-    if isinstance(rules, dict):
-        cfg = rules.get(rule_key, {})
-        if isinstance(cfg, dict):
-            return cfg
-    return {}
-
-
-def get_rule_list(rule_key: str, key: str, default: list[str] | tuple[str, ...] = ()) -> list[str]:
-    value = get_rule_config(rule_key).get(key, default)
-    if isinstance(value, list):
-        return [str(x) for x in value]
-    if isinstance(value, tuple):
-        return [str(x) for x in value]
-    return [str(x) for x in default]
 
 
 class ArticleExtractor(HTMLParser):
@@ -324,6 +105,10 @@ class ArticleExtractor(HTMLParser):
             return
         if tag == "title":
             self.in_title = True
+        if tag == "pre":
+            self.current_tag = "pre"
+            self.current_chunks = []
+            return
         if self.current_tag and tag in {"strong", "b"}:
             self.current_chunks.append("**")
         if self.current_tag and tag in {"em", "i"}:
@@ -335,6 +120,7 @@ class ArticleExtractor(HTMLParser):
             self.current_chunks = []
 
     def handle_endtag(self, tag: str):
+        tag = tag.lower()
         ignored = self.ignore_stack.pop() if self.ignore_stack else False
         was_skip = self.skip_stack.pop() if self.skip_stack else False
         was_noise = self.noise_stack.pop() if self.noise_stack else False
@@ -346,6 +132,13 @@ class ArticleExtractor(HTMLParser):
             return
         if tag == "title":
             self.in_title = False
+        if tag == "pre" and self.current_tag == "pre":
+            text = "".join(self.current_chunks).replace("\r\n", "\n").replace("\r", "\n").strip("\n")
+            if text.strip():
+                self.blocks.append(("pre", text))
+            self.current_tag = ""
+            self.current_chunks = []
+            return
         if self.current_tag and tag in {"strong", "b"}:
             self.current_chunks.append("**")
         if self.current_tag and tag in {"em", "i"}:
@@ -359,6 +152,9 @@ class ArticleExtractor(HTMLParser):
 
     def handle_data(self, data: str):
         if self.skip_depth > 0:
+            return
+        if self.current_tag == "pre":
+            self.current_chunks.append(data)
             return
         text = data.strip()
         if not text:
@@ -396,325 +192,108 @@ class BaseSiteRule:
     def request_headers(self, url: str, referer: str) -> list[dict[str, str]]:
         return []
 
+    def post_parse_blocks(self, blocks: list[tuple[str, str]]) -> list[tuple[str, str]]:
+        return blocks
 
-class SolidotRule(BaseSiteRule):
-    RULE_KEY = "solidot"
+    def min_blocks(self) -> int:
+        return 0
 
-    def __init__(self):
-        domains = tuple(get_rule_list(self.RULE_KEY, "domains", ("solidot.org",)))
-        super().__init__(domains)
+    def min_blocks_error(self) -> str:
+        return "页面中没有可提取的正文段落"
 
-    def primary_blocks(self, raw_html: str) -> list[tuple[str, str]]:
-        patterns = get_rule_list(self.RULE_KEY, "primary_html_patterns")
-        for pat in patterns:
-            m = re.search(pat, raw_html)
-            if m:
-                blocks = fallback_extract_blocks(m.group(1))
-                if blocks:
-                    return blocks
+
+def action_blog_semantic_filter(blocks: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    if not blocks:
         return []
 
-    def clean_blocks(self, blocks: list[tuple[str, str]]) -> list[tuple[str, str]]:
-        noise_patterns = get_rule_list(self.RULE_KEY, "drop_patterns")
-        result: list[tuple[str, str]] = []
-        for tag, text in blocks:
-            if not text:
-                continue
-            if any(re.search(pat, text, re.I) for pat in noise_patterns):
-                continue
-            cleaned = re.sub(r"\s+", " ", text).strip()
-            if is_too_short(cleaned, tag):
-                continue
-            result.append((tag, cleaned))
-        return result
-
-    def clean_images(self, images: list[str]) -> list[str]:
-        keywords = [k.lower() for k in get_rule_list(self.RULE_KEY, "image_drop_keywords")]
-        max_images = int(get_rule_config(self.RULE_KEY).get("max_images", 2))
-        filtered = []
-        for u in images:
-            lower = u.lower()
-            if any(k in lower for k in keywords):
-                continue
-            filtered.append(u)
-        return filtered[:max_images]
-
-
-class IfanrRule(BaseSiteRule):
-    RULE_KEY = "ifanr"
-
-    def __init__(self):
-        domains = tuple(get_rule_list(self.RULE_KEY, "domains", ("ifanr.com",)))
-        super().__init__(domains)
-
-    def primary_blocks(self, raw_html: str) -> list[tuple[str, str]]:
-        patterns = get_rule_list(self.RULE_KEY, "primary_html_patterns")
-        for pat in patterns:
-            m = re.search(pat, raw_html)
-            if m:
-                blocks = fallback_extract_blocks(m.group(1))
-                if blocks:
-                    return blocks
-        return []
-
-    def clean_blocks(self, blocks: list[tuple[str, str]]) -> list[tuple[str, str]]:
-        noise_patterns = get_rule_list(self.RULE_KEY, "drop_patterns")
-        result: list[tuple[str, str]] = []
-        for tag, text in blocks:
-            if not text:
-                continue
-            cleaned = re.sub(r"\s+", " ", text).strip()
-            if any(re.search(pat, cleaned, re.I) for pat in noise_patterns):
-                continue
-            if is_too_short(cleaned, tag):
-                continue
-            result.append((tag, cleaned))
-        return result
-
-    def clean_images(self, images: list[str]) -> list[str]:
-        keywords = [k.lower() for k in get_rule_list(self.RULE_KEY, "image_drop_keywords")]
-        max_images = int(get_rule_config(self.RULE_KEY).get("max_images", 6))
-        filtered = []
-        for u in images:
-            lower = u.lower()
-            if any(k in lower for k in keywords):
-                continue
-            filtered.append(u)
-        return filtered[:max_images]
-
-
-class Playno1Rule(BaseSiteRule):
-    RULE_KEY = "playno1"
-
-    def __init__(self):
-        domains = tuple(get_rule_list(self.RULE_KEY, "domains", ("playno1.com",)))
-        super().__init__(domains)
-
-    def request_headers(self, url: str, referer: str) -> list[dict[str, str]]:
-        cookie = os.environ.get("PLAYNO1_COOKIE", "").strip()
-        headers = dict(get_rule_config(self.RULE_KEY).get("request_headers", {}))
-        if "Referer" not in headers:
-            headers["Referer"] = "http://www.playno1.com/forbid.htm"
-        if cookie:
-            headers["Cookie"] = cookie
-        return [headers]
-
-    def primary_blocks(self, raw_html: str) -> list[tuple[str, str]]:
-        patterns = get_rule_list(self.RULE_KEY, "primary_html_patterns")
-        for pat in patterns:
-            m = re.search(pat, raw_html)
-            if m:
-                blocks = fallback_extract_blocks(m.group(1))
-                if blocks:
-                    return blocks
-        return []
-
-    def clean_blocks(self, blocks: list[tuple[str, str]]) -> list[tuple[str, str]]:
-        noise_patterns = get_rule_list(self.RULE_KEY, "drop_patterns")
-        result: list[tuple[str, str]] = []
-        for tag, text in blocks:
-            if not text:
-                continue
-            cleaned = re.sub(r"\s+", " ", text).strip()
-            if any(re.search(pat, cleaned, re.I) for pat in noise_patterns):
-                continue
-            if is_too_short(cleaned, tag):
-                continue
-            result.append((tag, cleaned))
-        return result
-
-    def clean_images(self, images: list[str]) -> list[str]:
-        keywords = [k.lower() for k in get_rule_list(self.RULE_KEY, "image_drop_keywords")]
-        max_images = int(get_rule_config(self.RULE_KEY).get("max_images", 12))
-        filtered = []
-        for u in images:
-            lower = u.lower()
-            if any(k in lower for k in keywords):
-                continue
-            filtered.append(u)
-        return filtered[:max_images]
-
-
-class BlogJavaRule(BaseSiteRule):
-    RULE_KEY = "blogjava"
-
-    def __init__(self):
-        domains = tuple(get_rule_list(self.RULE_KEY, "domains", ("blogjava.net",)))
-        super().__init__(domains)
-
-    def primary_blocks(self, raw_html: str) -> list[tuple[str, str]]:
-        patterns = get_rule_list(self.RULE_KEY, "primary_html_patterns")
-        for pat in patterns:
-            m = re.search(pat, raw_html)
-            if m:
-                blocks = fallback_extract_blocks(m.group(1))
-                if blocks:
-                    return blocks
-        return []
-
-    def clean_blocks(self, blocks: list[tuple[str, str]]) -> list[tuple[str, str]]:
-        noise_exact = set(get_rule_list(self.RULE_KEY, "drop_exact"))
-        noise_patterns = get_rule_list(self.RULE_KEY, "drop_patterns")
-        stage1: list[tuple[str, str]] = []
-        for tag, text in blocks:
-            if not text:
-                continue
-            cleaned = re.sub(r"\s+", " ", text).strip()
-            lower = cleaned.lower()
-            if cleaned in noise_exact:
-                continue
-            if any(re.search(pat, cleaned, re.I) for pat in noise_patterns):
-                continue
-            if "(rss)" in lower:
-                continue
-            # Typical sidebar taxonomy line like: SPRING(44) (rss)
-            if re.match(r"^[\w\u4e00-\u9fff\-/\s\(\)]+\(rss\)\s*$", cleaned, re.I):
-                continue
-            if re.match(r"^[A-Z][A-Z0-9\-\s/]{2,}\(\d+\)$", cleaned):
-                continue
-            if re.match(r"^\d{4}年\d{1,2}月\s*\(\d+\)$", cleaned):
-                continue
-            if is_too_short(cleaned, tag):
-                continue
-            stage1.append((tag, cleaned))
-
-        # Fallback semantic filter: drop sidebar-like tag names and keep sentence-like article text.
-        if not stage1:
-            return []
-
-        def looks_like_sentence(s: str) -> bool:
-            if len(s) < 20:
-                return False
-            if re.search(r"[。！？；：，,.!?;:]", s):
-                return True
-            cjk_count = len(re.findall(r"[\u4e00-\u9fff]", s))
-            return cjk_count >= 8 and len(s) >= 28
-
-        result: list[tuple[str, str]] = []
-        for tag, cleaned in stage1:
-            if looks_like_sentence(cleaned):
-                result.append((tag, cleaned))
-                continue
-            # Keep short headings if they look like article section titles.
-            if tag in {"h1", "h2", "h3"} and 6 <= len(cleaned) <= 80:
-                if not re.search(r"(blogjava|paulwong|rss|首页|联系|管理)", cleaned, re.I):
-                    result.append((tag, cleaned))
-                continue
-            # Drop category-like uppercase/tag lines.
-            if re.match(r"^[A-Z0-9\-\s/]+\(?\d*\)?$", cleaned):
-                continue
-        # If still looks polluted by sidebar keywords, keep only sentence-like lines.
-        pollution_hits = sum(
-            1 for _, t in result if re.search(r"(我的随笔|我的评论|给我留言|查看公开留言|查看私人留言|最新评论)", t)
-        )
-        if pollution_hits > 0:
-            result = [(tag, t) for tag, t in result if looks_like_sentence(t)]
-        return result
-
-    def clean_images(self, images: list[str]) -> list[str]:
-        keywords = [k.lower() for k in get_rule_list(self.RULE_KEY, "image_drop_keywords")]
-        max_images = int(get_rule_config(self.RULE_KEY).get("max_images", 3))
-        filtered = []
-        for u in images:
-            lower = u.lower()
-            if any(k in lower for k in keywords):
-                continue
-            filtered.append(u)
-        return filtered[:max_images]
-
-
-class YahooNewsJPRule(BaseSiteRule):
-    RULE_KEY = "yahoo_news_jp"
-
-    def __init__(self):
-        domains = tuple(get_rule_list(self.RULE_KEY, "domains", ("news.yahoo.co.jp",)))
-        super().__init__(domains)
-
-    def primary_blocks(self, raw_html: str) -> list[tuple[str, str]]:
-        state_blocks = extract_yahoo_preloaded_blocks(raw_html)
-        if state_blocks:
-            return state_blocks
-
-        patterns = get_rule_list(self.RULE_KEY, "primary_html_patterns")
-        for pat in patterns:
-            m = re.search(pat, raw_html)
-            if m:
-                blocks = fallback_extract_blocks(m.group(1))
-                if blocks:
-                    return blocks
-        return []
-
-    def clean_blocks(self, blocks: list[tuple[str, str]]) -> list[tuple[str, str]]:
-        drop_patterns = get_rule_list(self.RULE_KEY, "drop_patterns")
-        stop_patterns = get_rule_list(self.RULE_KEY, "stop_patterns")
-        result: list[tuple[str, str]] = []
-        body_like_count = 0
-        headline_run = 0
-
-        def is_headline_like(s: str) -> bool:
-            # Short single-line titles (often related-news list items).
-            if len(s) < 18 or len(s) > 120:
-                return False
-            if re.search(r"[。！？]", s):
-                return False
-            if re.search(r"(配信|最終更新|コメント|アクセスランキング)", s):
-                return False
+    def looks_like_sentence(s: str) -> bool:
+        if len(s) < 20:
+            return False
+        if re.search(r"[。！？；：，,.!?;:]", s):
             return True
+        cjk_count = len(re.findall(r"[\u4e00-\u9fff]", s))
+        return cjk_count >= 8 and len(s) >= 28
 
-        for tag, text in blocks:
-            cleaned = re.sub(r"\s+", " ", (text or "")).strip()
-            if not cleaned:
-                continue
-            if any(re.search(pat, cleaned, re.I) for pat in stop_patterns):
-                break
-            if any(re.search(pat, cleaned, re.I) for pat in drop_patterns):
-                continue
-            if re.match(r"^\d+\s", cleaned) and "ランキング" in cleaned:
-                break
-            if is_too_short(cleaned, tag):
-                continue
-
-            if re.search(r"[。！？]", cleaned):
-                body_like_count += 1
-                headline_run = 0
-            elif is_headline_like(cleaned):
-                headline_run += 1
-                # After core body starts, two consecutive headline-like lines imply related list.
-                if body_like_count >= 3 and headline_run >= 2:
-                    break
-            else:
-                headline_run = 0
-
+    result: list[tuple[str, str]] = []
+    for tag, cleaned in blocks:
+        if looks_like_sentence(cleaned):
             result.append((tag, cleaned))
-        return result
-
-    def clean_images(self, images: list[str]) -> list[str]:
-        keywords = [k.lower() for k in get_rule_list(self.RULE_KEY, "image_drop_keywords")]
-        max_images = int(get_rule_config(self.RULE_KEY).get("max_images", 1))
-        filtered = []
-        for u in images:
-            lower = u.lower()
-            if any(k in lower for k in keywords):
-                continue
-            # Prefer canonical Yahoo article image domains.
-            if "newsatcl-pctr.c.yimg.jp" in lower or "news-pctr.c.yimg.jp" in lower:
-                filtered.append(u)
-                continue
-            filtered.append(u)
-        return filtered[:max_images]
+            continue
+        if tag in {"h1", "h2", "h3"} and 6 <= len(cleaned) <= 80:
+            if not re.search(r"(blogjava|paulwong|rss|首页|联系|管理)", cleaned, re.I):
+                result.append((tag, cleaned))
+            continue
+        if re.match(r"^[A-Z0-9\-\s/]+\(?\d*\)?$", cleaned):
+            continue
+    pollution_hits = sum(
+        1 for _, t in result if re.search(r"(我的随笔|我的评论|给我留言|查看公开留言|查看私人留言|最新评论)", t)
+    )
+    if pollution_hits > 0:
+        result = [(tag, t) for tag, t in result if looks_like_sentence(t)]
+    return result
 
 
-class MediumRule(BaseSiteRule):
-    RULE_KEY = "medium"
+def action_headline_tail_cut(blocks: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    result: list[tuple[str, str]] = []
+    body_like_count = 0
+    headline_run = 0
 
-    def __init__(self):
-        domains = tuple(get_rule_list(self.RULE_KEY, "domains", ("medium.com",)))
+    def is_headline_like(s: str) -> bool:
+        if len(s) < 18 or len(s) > 120:
+            return False
+        if re.search(r"[。！？]", s):
+            return False
+        if re.search(r"(配信|最終更新|コメント|アクセスランキング)", s):
+            return False
+        return True
+
+    for tag, cleaned in blocks:
+        if re.match(r"^\d+\s", cleaned) and "ランキング" in cleaned:
+            break
+        if re.search(r"[。！？]", cleaned):
+            body_like_count += 1
+            headline_run = 0
+        elif is_headline_like(cleaned):
+            headline_run += 1
+            if body_like_count >= 3 and headline_run >= 2:
+                break
+        else:
+            headline_run = 0
+        result.append((tag, cleaned))
+    return result
+
+
+PRE_PRIMARY_ACTIONS: dict[str, Any] = {}
+
+POST_CLEAN_ACTIONS = {
+    "blog_semantic_filter": action_blog_semantic_filter,
+    "headline_tail_cut": action_headline_tail_cut,
+}
+
+POST_PARSE_ACTIONS: dict[str, Any] = {}
+
+
+class ConfigSiteRule(BaseSiteRule):
+    def __init__(self, rule_key: str, cfg: dict[str, Any]):
+        self.rule_key = rule_key
+        self.cfg = cfg
+        domains_raw = cfg.get("domains", [])
+        domains = tuple(str(d).lower() for d in domains_raw if str(d).strip())
         super().__init__(domains)
 
     def primary_blocks(self, raw_html: str) -> list[tuple[str, str]]:
-        patterns = get_rule_list(self.RULE_KEY, "primary_html_patterns")
+        for action_name in self.cfg.get("pre_primary_actions", []) or []:
+            action = PRE_PRIMARY_ACTIONS.get(str(action_name))
+            if action is None and str(action_name) == "yahoo_preloaded_state":
+                action = extract_yahoo_preloaded_blocks
+            if not action:
+                continue
+            blocks = action(raw_html)
+            if blocks:
+                return blocks
+        patterns = self.cfg.get("primary_html_patterns", []) or []
         for pat in patterns:
-            m = re.search(pat, raw_html)
+            m = re.search(str(pat), raw_html)
             if m:
                 blocks = fallback_extract_blocks(m.group(1))
                 if blocks:
@@ -722,16 +301,21 @@ class MediumRule(BaseSiteRule):
         return []
 
     def clean_blocks(self, blocks: list[tuple[str, str]]) -> list[tuple[str, str]]:
-        drop_exact = set(get_rule_list(self.RULE_KEY, "drop_exact"))
-        drop_patterns = get_rule_list(self.RULE_KEY, "drop_patterns")
-        stop_patterns = get_rule_list(self.RULE_KEY, "stop_patterns")
+        drop_exact = {str(x) for x in (self.cfg.get("drop_exact", []) or [])}
+        drop_patterns = [str(x) for x in (self.cfg.get("drop_patterns", []) or [])]
+        stop_patterns = [str(x) for x in (self.cfg.get("stop_patterns", []) or [])]
+        replacements = self.cfg.get("text_replacements", []) or []
+        skip_rel_links = bool(self.cfg.get("skip_relative_markdown_links", False))
+
         result: list[tuple[str, str]] = []
         for tag, text in blocks:
-            cleaned = re.sub(r"\s+", " ", (text or "")).strip()
+            if tag == "pre":
+                cleaned = (text or "").replace("\r\n", "\n").replace("\r", "\n").strip("\n")
+            else:
+                cleaned = re.sub(r"\s+", " ", (text or "")).strip()
             if not cleaned:
                 continue
-            # Medium chrome often leaks as markdown-style relative links.
-            if re.match(r"^\[[^\]]*\]\(/[^)]+\)$", cleaned):
+            if skip_rel_links and re.match(r"^\[[^\]]*\]\(/[^)]+\)$", cleaned):
                 continue
             if cleaned in drop_exact:
                 continue
@@ -739,17 +323,29 @@ class MediumRule(BaseSiteRule):
                 break
             if any(re.search(pat, cleaned, re.I) for pat in drop_patterns):
                 continue
-            cleaned = re.sub(r"^\s*Press enter or click to view image in full size\s*", "", cleaned, flags=re.I)
+            for repl in replacements:
+                if not isinstance(repl, dict):
+                    continue
+                pat = str(repl.get("pattern") or "")
+                to = str(repl.get("to") or "")
+                if pat:
+                    cleaned = re.sub(pat, to, cleaned, flags=re.I)
+            cleaned = cleaned.strip()
             if not cleaned:
                 continue
-            if is_too_short(cleaned, tag):
+            if tag != "pre" and is_too_short(cleaned, tag):
                 continue
             result.append((tag, cleaned))
+
+        for action_name in self.cfg.get("post_clean_actions", []) or []:
+            action = POST_CLEAN_ACTIONS.get(str(action_name))
+            if action:
+                result = action(result)
         return result
 
     def clean_images(self, images: list[str]) -> list[str]:
-        keywords = [k.lower() for k in get_rule_list(self.RULE_KEY, "image_drop_keywords")]
-        max_images = int(get_rule_config(self.RULE_KEY).get("max_images", 3))
+        keywords = [str(k).lower() for k in (self.cfg.get("image_drop_keywords", []) or [])]
+        max_images = int(self.cfg.get("max_images", 4))
         filtered = []
         for u in images:
             lower = u.lower()
@@ -758,15 +354,49 @@ class MediumRule(BaseSiteRule):
             filtered.append(u)
         return filtered[:max_images]
 
+    def request_headers(self, url: str, referer: str) -> list[dict[str, str]]:
+        request_headers = self.cfg.get("request_headers", {})
+        headers = dict(request_headers) if isinstance(request_headers, dict) else {}
+        cookie_env_var = str(self.cfg.get("cookie_env_var") or "").strip()
+        if cookie_env_var:
+            cookie = os.environ.get(cookie_env_var, "").strip()
+            if cookie:
+                headers["Cookie"] = cookie
+        if headers:
+            if "Referer" not in headers:
+                headers["Referer"] = referer
+            return [headers]
+        return []
 
-RULES: list[BaseSiteRule] = [
-    SolidotRule(),
-    IfanrRule(),
-    Playno1Rule(),
-    BlogJavaRule(),
-    YahooNewsJPRule(),
-    MediumRule(),
-]
+    def post_parse_blocks(self, blocks: list[tuple[str, str]]) -> list[tuple[str, str]]:
+        result = blocks
+        for action_name in self.cfg.get("post_parse_actions", []) or []:
+            action = POST_PARSE_ACTIONS.get(str(action_name))
+            if action is None and str(action_name) == "hard_filter_blogjava_blocks":
+                action = hard_filter_blogjava_blocks
+            if action:
+                result = action(result)
+        return result
+
+    def min_blocks(self) -> int:
+        return int(self.cfg.get("min_blocks", 0))
+
+    def min_blocks_error(self) -> str:
+        return str(self.cfg.get("min_blocks_error") or "页面中没有可提取的正文段落")
+
+
+def build_rules() -> list[BaseSiteRule]:
+    rules_cfg = PARSER_RULES.get("rules", {})
+    if not isinstance(rules_cfg, dict):
+        return []
+    built: list[BaseSiteRule] = []
+    for rule_key, cfg in rules_cfg.items():
+        if isinstance(cfg, dict):
+            built.append(ConfigSiteRule(str(rule_key), cfg))
+    return built
+
+
+RULES: list[BaseSiteRule] = build_rules()
 
 
 def choose_rule(host: str) -> BaseSiteRule | None:
@@ -866,15 +496,9 @@ def parse_link_to_markdown(url: str, timeout: int = 10) -> ParseOutput:
     if rule:
         chosen_blocks = rule.clean_blocks(chosen_blocks)
         image_urls = rule.clean_images(image_urls)
-        # Prefer explicit failure over storing obvious sidebar noise.
-        if isinstance(rule, BlogJavaRule) and len(chosen_blocks) < 2:
-            raise ValueError("未识别到 BlogJava 正文容器，请尝试手动粘贴正文或提供页面源码片段。")
-
-    # Host-level hard filter: prevent template/sidebar pollution from being stored.
-    if "blogjava.net" in host.lower():
-        chosen_blocks = hard_filter_blogjava_blocks(chosen_blocks)
-        if len(chosen_blocks) < 2:
-            raise ValueError("BlogJava 页面仍被模板干扰，未提取到有效正文。请提供页面源码以完成精准规则。")
+        chosen_blocks = rule.post_parse_blocks(chosen_blocks)
+        if len(chosen_blocks) < rule.min_blocks():
+            raise ValueError(rule.min_blocks_error())
 
     if not chosen_blocks:
         raise ValueError("页面中没有可提取的正文段落")
@@ -900,6 +524,10 @@ def parse_link_to_markdown(url: str, timeout: int = 10) -> ParseOutput:
             lines.append(f"### {chunk}")
         elif tag == "h3":
             lines.append(f"#### {chunk}")
+        elif tag == "pre":
+            lines.append("```")
+            lines.append(chunk)
+            lines.append("```")
         elif tag == "li":
             lines.append(f"- {chunk}")
         else:
@@ -1269,6 +897,20 @@ def body_to_blocks(body: str) -> list[tuple[str, str]]:
 
 def fallback_extract_blocks(raw_html: str) -> list[tuple[str, str]]:
     content = re.sub(r"(?is)<(script|style|noscript)[^>]*>.*?</\1>", " ", raw_html)
+    code_blocks: list[str] = []
+
+    def pre_repl(match: re.Match) -> str:
+        inner = match.group(1)
+        inner = re.sub(r"(?is)<\s*br\s*/?\s*>", "\n", inner)
+        inner = re.sub(r"(?is)</p\s*>", "\n", inner)
+        inner = re.sub(r"(?is)<[^>]+>", "", inner)
+        code = html_std.unescape(inner).replace("\r\n", "\n").replace("\r", "\n").strip("\n")
+        if not code.strip():
+            return "\n"
+        code_blocks.append(code)
+        return f"\n__CODE_BLOCK_{len(code_blocks)-1}__\n"
+
+    content = re.sub(r"(?is)<pre[^>]*>(.*?)</pre>", pre_repl, content)
     main_match = re.search(r"(?is)<(article|main)[^>]*>(.*?)</\1>", content)
     if main_match:
         content = main_match.group(2)
@@ -1291,6 +933,12 @@ def fallback_extract_blocks(raw_html: str) -> list[tuple[str, str]]:
     lines = []
     for part in content.splitlines():
         cleaned = re.sub(r"[ \t]+", " ", part).strip()
+        code_m = re.match(r"^__CODE_BLOCK_(\d+)__$", cleaned)
+        if code_m:
+            idx = int(code_m.group(1))
+            if 0 <= idx < len(code_blocks):
+                lines.append(("pre", code_blocks[idx][:8000]))
+            continue
         cleaned = re.sub(r"\*{3,}", "**", cleaned)
         cleaned = re.sub(r"\*{2}\s+\*{2}", "", cleaned).strip()
         if is_too_short(cleaned, "p"):

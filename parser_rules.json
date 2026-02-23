@@ -84,11 +84,16 @@
         "Connection": "keep-alive",
         "Upgrade-Insecure-Requests": "1"
       },
+      "cookie_env_var": "PLAYNO1_COOKIE",
       "image_drop_keywords": ["logo", "icon", "avatar", "ads", "banner", "qrcode"],
       "max_images": 12
     },
     "blogjava": {
       "domains": ["blogjava.net"],
+      "post_clean_actions": ["blog_semantic_filter"],
+      "post_parse_actions": ["hard_filter_blogjava_blocks"],
+      "min_blocks": 2,
+      "min_blocks_error": "BlogJava 页面仍被模板干扰，未提取到有效正文。请提供页面源码以完成精准规则。",
       "primary_html_patterns": [
         "(?is)<div[^>]*id=[\"']?(?:cnblogs_post_body|blog_post_body|BlogPostContent|post_body|postBody)[\"']?[^>]*>(.*?)</div>",
         "(?is)<div[^>]*class=[\"'][^\"']*(?:postCon|postBody|post-body|entry-content|article-content)[^\"']*[\"'][^>]*>(.*?)</div>",
@@ -119,6 +124,8 @@
     },
     "yahoo_news_jp": {
       "domains": ["news.yahoo.co.jp"],
+      "pre_primary_actions": ["yahoo_preloaded_state"],
+      "post_clean_actions": ["headline_tail_cut"],
       "primary_html_patterns": [
         "(?is)<article[^>]*>(.*?)</article>",
         "(?is)<div[^>]*class=[\"'][^\"']*(?:article|Article|articleBody|mainContents|contentsBody)[^\"']*[\"'][^>]*>(.*?)</div>",
@@ -149,7 +156,8 @@
       "max_images": 1
     },
     "medium": {
-      "domains": ["medium.com"],
+      "domains": ["medium.com", "freedium-mirror.cfd"],
+      "skip_relative_markdown_links": true,
       "primary_html_patterns": [
         "(?is)<article[^>]*>(.*?)</article>",
         "(?is)<main[^>]*>(.*?)</main>",
@@ -165,6 +173,19 @@
       "drop_patterns": [
         "^\\s*\\d+\\s*$",
         "^\\[[^\\]]*\\]\\(/[^\\)]+\\)$",
+        "^\\[[^\\]]+\\]\\(https?://[^\\)]+\\)$",
+        "^\\[\\]\\(https?://[^\\)]+\\)$",
+        "^Follow$",
+        "^We’ve reached .* of stored data.*$",
+        "^Patreon$",
+        "^Ko-fi$",
+        "^Liberapay$",
+        "^ko-fi$",
+        "^patreon$",
+        "^librepay$",
+        "^source code$",
+        "^status page$",
+        "^< Go to the original$",
         "^Data Science Collective$",
         "^Advice, insights, and ideas from the Medium data science community$",
         "^Press enter or click to view image in full size$",
@@ -184,6 +205,9 @@
         "^Text to speech$"
       ],
       "stop_patterns": [
+        "^A message from our Founder$",
+        "^Sometimes we have problems displaying some Medium posts\\.$",
+        "^#.+$",
         "^Published in .+",
         "^Written by .+",
         "^Responses\\s*\\(",
@@ -197,6 +221,12 @@
         "^Rules$",
         "^Terms$",
         "^Text to speech$"
+      ],
+      "text_replacements": [
+        {
+          "pattern": "^\\s*Press enter or click to view image in full size\\s*",
+          "to": ""
+        }
       ],
       "image_drop_keywords": ["icon", "logo", "avatar", "badge", "glyph", "favicon", "emoji"],
       "max_images": 3

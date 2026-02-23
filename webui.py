@@ -589,9 +589,29 @@ def render_markdown(text: str, keyword: str = "", selected_quotes: list[str] | N
     lines = md.splitlines()
     out: list[str] = []
     in_list = False
+    in_code = False
+    code_lines: list[str] = []
     i = 0
     while i < len(lines):
         line = lines[i].rstrip()
+        if re.match(r"^```", line.strip()):
+            if in_list:
+                out.append("</ul>")
+                in_list = False
+            if not in_code:
+                in_code = True
+                code_lines = []
+            else:
+                escaped_code = html.escape("\n".join(code_lines), quote=False)
+                out.append(f"<pre><code>{escaped_code}</code></pre>")
+                in_code = False
+                code_lines = []
+            i += 1
+            continue
+        if in_code:
+            code_lines.append(line)
+            i += 1
+            continue
         if not line:
             if in_list:
                 out.append("</ul>")
@@ -651,6 +671,9 @@ def render_markdown(text: str, keyword: str = "", selected_quotes: list[str] | N
         i += 1
     if in_list:
         out.append("</ul>")
+    if in_code:
+        escaped_code = html.escape("\n".join(code_lines), quote=False)
+        out.append(f"<pre><code>{escaped_code}</code></pre>")
     return "".join(out) if out else "<p></p>"
 
 
@@ -720,6 +743,26 @@ def page_layout(title: str, body: str) -> str:
       border: 1px solid #d9e4df;
       padding: 1px 4px;
       border-radius: 5px;
+    }}
+    .md pre {{
+      margin: 8px 0;
+      padding: 10px 12px;
+      background: #0f172a;
+      color: #e5e7eb;
+      border-radius: 10px;
+      overflow-x: auto;
+      border: 1px solid #1f2937;
+    }}
+    .md pre code {{
+      background: transparent;
+      border: 0;
+      padding: 0;
+      color: inherit;
+      border-radius: 0;
+      white-space: pre;
+      display: block;
+      line-height: 1.5;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }}
     .md mark {{
       background: #fff3a2;

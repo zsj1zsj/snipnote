@@ -61,9 +61,9 @@ python3 webui.py --host 127.0.0.1 --port 8787
 ## 解析规则（配置化）
 
 - 规则引擎支持配置文件：`parser_rules.json`
-- 代码入口仍在：`parser_engine.py`（负责读取配置并执行规则）
+- 代码入口仍在：`parser_engine.py`（仅保留通用解析流程与通用动作）
+- 各域名规则全部在 `parser_rules.json` 中维护（`parser_engine.py` 不再内置站点规则）
 - 当前内置配置：`solidot.org`、`ifanr.com`、`playno1.com`、`blogjava.net`、`news.yahoo.co.jp`、`medium.com`
-- `news.yahoo.co.jp` 仍保留代码级特例：优先解析 `window.__PRELOADED_STATE__`，配置主要用于噪音过滤与图片策略
 - `economist.com` 需要屏蔽的脚本地址也已放入 `parser_rules.json > blocked_script_sources`
 
 ### 如何新增/调整站点规则
@@ -78,6 +78,11 @@ python3 webui.py --host 127.0.0.1 --port 8787
 - `image_drop_keywords`：图片 URL 过滤关键词
 - `max_images`：该站点最多保留图片数量
 - `request_headers`：站点专用请求头（可选）
+- `pre_primary_actions`：优先正文提取动作（可选，例如 `yahoo_preloaded_state`）
+- `post_clean_actions`：基础清洗后再执行的动作链（可选）
+- `post_parse_actions`：最终输出前动作链（可选）
+- `text_replacements`：文本替换规则（可选，正则 `pattern` + `to`）
+- `min_blocks` / `min_blocks_error`：最小正文段落数和失败提示（可选）
 
 修改配置后重启 `webui.py` 即可生效，无需改 Python 代码。
 
