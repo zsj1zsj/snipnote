@@ -78,7 +78,8 @@ python3 webui.py --host 127.0.0.1 --port 8787
 - 规则引擎支持配置文件：`parser_rules.json`
 - 代码入口仍在：`parser_engine.py`（仅保留通用解析流程与通用动作）
 - 各域名规则全部在 `parser_rules.json` 中维护（`parser_engine.py` 不再内置站点规则）
-- 当前内置配置：`solidot.org`、`ifanr.com`、`playno1.com`、`blogjava.net`、`news.yahoo.co.jp`、`medium.com`、`cnblogs.com`、`liaoxuefeng.com`
+- 当前内置配置：`solidot.org`、`ifanr.com`、`playno1.com`、`blogjava.net`、`news.yahoo.co.jp`、`medium.com`、`economist.com`、`cnblogs.com`、`liaoxuefeng.com`
+- `economist.com` 在疑似 paywall 时会自动尝试通过 `archive.is` 快照抓取正文（无需改现有使用方式）
 - `economist.com` 需要屏蔽的脚本地址也已放入 `parser_rules.json > blocked_script_sources`
 - 代码块会尽量保留语言标记（例如 ` ```java `），并在页面渲染时挂载 `language-xxx` class
 - 若代码块未识别到语言，会默认按 `java` 处理

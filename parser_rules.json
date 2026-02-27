@@ -231,6 +231,31 @@
       "image_drop_keywords": ["icon", "logo", "avatar", "badge", "glyph", "favicon", "emoji"],
       "max_images": 3
     },
+    "economist": {
+      "domains": ["economist.com", "www.economist.com"],
+      "primary_container_ids": ["new-article-template", "CONTENT"],
+      "primary_html_patterns": [
+        "(?is)<article[^>]*id=[\"']?new-article-template[\"']?[^>]*>(.*?)</article>",
+        "(?is)<div[^>]*id=[\"']?CONTENT[\"']?[^>]*>(.*?)</div>",
+        "(?is)<article[^>]*>(.*?)</article>",
+        "(?is)<main[^>]*>(.*?)</main>"
+      ],
+      "drop_patterns": [
+        "^\\s*Subscribe\\s*$",
+        "^\\s*Log in\\s*$",
+        "^\\s*Sign in\\s*$",
+        "subscriber-only",
+        "to continue reading",
+        "Start your subscription",
+        "^\\s*Share\\s*$",
+        "^\\s*Menu\\s*$",
+        "^\\s*Photograph:\\s*"
+      ],
+      "image_drop_keywords": ["logo", "icon", "avatar", "banner", "ads", "sprite", "favicon"],
+      "max_images": 2,
+      "min_blocks": 2,
+      "min_blocks_error": "未提取到足够正文，经济学人页面可能受付费墙限制。"
+    },
     "cnblogs": {
       "domains": ["cnblogs.com", "www.cnblogs.com"],
       "primary_container_ids": ["cnblogs_post_body", "post_detail"],

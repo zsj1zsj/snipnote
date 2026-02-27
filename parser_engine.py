@@ -5,7 +5,7 @@ import re
 from typing import Any
 from dataclasses import dataclass
 from html.parser import HTMLParser
-from urllib.parse import parse_qsl, urljoin, urlparse, urlsplit
+from urllib.parse import parse_qsl, quote, urljoin, urlparse, urlsplit
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -554,6 +554,132 @@ def fetch_html_with_retry(url: str, timeout: int = 10) -> tuple[str, bytes]:
     raise RuntimeError("抓取失败: 未知网络错误")
 
 
+def _strip_tags(value: str) -> str:
+    s = re.sub(r"(?is)<[^>]+>", " ", value or "")
+    s = html_std.unescape(s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _extract_archive_snapshot_url(raw_html: str) -> str | None:
+    blue_pat = r'<a\s+[^>]*style=["\'][^"\']*color:\s*blue[^"\']*["\'][^>]*href=["\']?([^"\'> ]+)["\']?'
+    blue_match = re.search(blue_pat, raw_html, re.IGNORECASE | re.DOTALL)
+    if blue_match:
+        candidate = blue_match.group(1).strip()
+        if candidate:
+            return urljoin("https://archive.is/", candidate)
+    thumb_pat = r'<a\s+style=["\']text-decoration:\s*none["\']\s+href=["\']([^"\']+)["\']'
+    thumb_matches = re.findall(thumb_pat, raw_html, flags=re.IGNORECASE)
+    if thumb_matches:
+        return urljoin("https://archive.is/", thumb_matches[-1].strip())
+    return None
+
+
+def _get_archive_snapshot_url(url: str, timeout: int) -> str | None:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+        "Referer": "https://archive.is/",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
+    check_url = f"https://archive.is/{quote(url, safe='')}"
+    try:
+        raw = _attempt_fetch(check_url, headers, timeout)
+    except Exception:
+        return None
+    html = raw.decode("utf-8", errors="replace")
+    return _extract_archive_snapshot_url(html)
+
+
+def _is_probable_economist_paywall(blocks: list[tuple[str, str]]) -> bool:
+    if not blocks:
+        return True
+    joined = " ".join(text for _, text in blocks[:20]).lower()
+    paywall_terms = [
+        "subscribe",
+        "subscriber-only",
+        "already a subscriber",
+        "log in",
+        "sign in",
+        "to continue reading",
+        "start your subscription",
+    ]
+    long_body_count = sum(
+        1
+        for tag, text in blocks
+        if tag not in {"h1", "h2", "h3"} and len((text or "").strip()) >= 120
+    )
+    if any(term in joined for term in paywall_terms) and long_body_count < 2:
+        return True
+    if long_body_count == 0 and len(blocks) <= 3:
+        return True
+    return False
+
+
+def _extract_economist_snapshot_blocks(snapshot_html: str) -> tuple[str, list[tuple[str, str]]]:
+    h1_match = re.search(r"(?is)<h1[^>]*>(.*?)</h1>", snapshot_html)
+    title = _strip_tags(h1_match.group(1)) if h1_match else ""
+    container_html = extract_container_by_id(snapshot_html, "new-article-template")
+    if not container_html:
+        container_html = extract_container_by_id(snapshot_html, "CONTENT")
+    blocks = fallback_extract_blocks(container_html or snapshot_html)
+
+    noise_words = (
+        "subscribe",
+        "log in",
+        "sign in",
+        "menu",
+        "share",
+        "photograph:",
+        "©",
+        "copyright",
+    )
+    result: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for tag, text in blocks:
+        cleaned = re.sub(r"\s+", " ", (text or "")).strip()
+        if len(cleaned) < 30:
+            continue
+        lower = cleaned.lower()
+        if any(w in lower for w in noise_words):
+            continue
+        key = f"{tag}|{cleaned}"
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append((tag, cleaned))
+
+    if result:
+        return title, result[:180]
+
+    # Final fallback: extract plain <p> content.
+    paras = re.findall(r"(?is)<p[^>]*>(.*?)</p>", snapshot_html)
+    plain: list[tuple[str, str]] = []
+    for raw in paras:
+        cleaned = _strip_tags(raw)
+        if len(cleaned) >= 40:
+            plain.append(("p", cleaned))
+    return title, plain[:180]
+
+
+def _try_economist_archive_snapshot(url: str, timeout: int = 10) -> tuple[str, list[tuple[str, str]]] | None:
+    snapshot_url = _get_archive_snapshot_url(url, timeout)
+    if not snapshot_url:
+        return None
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
+    try:
+        raw = _attempt_fetch(snapshot_url, headers, timeout)
+    except Exception:
+        return None
+    html = raw.decode("utf-8", errors="replace")
+    title, blocks = _extract_economist_snapshot_blocks(html)
+    if not blocks:
+        return None
+    return title, blocks
+
+
 def parse_link_to_markdown(url: str, timeout: int = 10) -> ParseOutput:
     fetched_url, raw = fetch_html_with_retry(url, timeout=timeout)
     text = raw.decode("utf-8", errors="replace")
@@ -584,8 +710,21 @@ def parse_link_to_markdown(url: str, timeout: int = 10) -> ParseOutput:
         chosen_blocks = rule.clean_blocks(chosen_blocks)
         image_urls = rule.clean_images(image_urls)
         chosen_blocks = rule.post_parse_blocks(chosen_blocks)
-        if len(chosen_blocks) < rule.min_blocks():
-            raise ValueError(rule.min_blocks_error())
+    if host.endswith("economist.com"):
+        min_required = rule.min_blocks() if rule else 0
+        if _is_probable_economist_paywall(chosen_blocks) or (min_required and len(chosen_blocks) < min_required):
+            snapshot = _try_economist_archive_snapshot(url, timeout=timeout)
+            if snapshot is not None:
+                snapshot_title, snapshot_blocks = snapshot
+                if snapshot_title:
+                    title = snapshot_title
+                chosen_blocks = snapshot_blocks
+                if rule:
+                    chosen_blocks = rule.clean_blocks(chosen_blocks)
+                    chosen_blocks = rule.post_parse_blocks(chosen_blocks)
+
+    if rule and len(chosen_blocks) < rule.min_blocks():
+        raise ValueError(rule.min_blocks_error())
 
     if not chosen_blocks:
         raise ValueError("页面中没有可提取的正文段落")
