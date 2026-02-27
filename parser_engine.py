@@ -353,6 +353,126 @@ POST_CLEAN_ACTIONS = {
 POST_PARSE_ACTIONS: dict[str, Any] = {}
 
 
+def extract_discuz_thread_blocks(raw_html: str) -> list[tuple[str, str]]:
+    # Discuz thread pages store each floor body in id="postmessage_xxx".
+    blocks: list[tuple[str, str]] = []
+
+    title_match = re.search(r"(?is)<h1\b[^>]*>(.*?)</h1>", raw_html)
+    if title_match:
+        title = _strip_tags(title_match.group(1))
+        if title:
+            blocks.append(("h2", title))
+
+    floor_entries: list[tuple[str, str, str]] = []
+    table_pat = re.compile(r'(?is)<(?P<tag>table)\b[^>]*\bid=["\']pid(\d+)["\'][^>]*>')
+    post_pat = re.compile(r'(?is)<(?P<tag>div)\b[^>]*\bid=["\']postmessage_\d+["\'][^>]*>')
+
+    for tm in table_pat.finditer(raw_html):
+        table_html = extract_balanced_tag_inner(raw_html, tm)
+        if not table_html:
+            continue
+        floor_m = re.search(r'(?is)<strong\b[^>]*>\s*(\d+)\s*<sup>\s*#\s*</sup>\s*</strong>', table_html)
+        if not floor_m:
+            continue
+        floor = floor_m.group(1).strip()
+
+        author = ""
+        # Extract postauthor cell first, then resolve author anchor within it.
+        td_author_m = re.search(r'(?is)<(?P<tag>td)\b[^>]*\bclass\s*=\s*["\']?postauthor["\']?[^>]*>', table_html)
+        td_author_html = extract_balanced_tag_inner(table_html, td_author_m) if td_author_m else None
+        scope_html = td_author_html or table_html
+        # Discuz floor author anchor is usually like:
+        # <a ... id="userinfo34824502" ...>用户名</a>
+        # Allow quoted/unquoted attribute values.
+        author_m = re.search(
+            r'(?is)<a\b[^>]*\bid\s*=\s*["\']?userinfo\d+["\']?[^>]*>(.*?)</a>',
+            scope_html,
+        )
+        if author_m:
+            author = _strip_tags(author_m.group(1))
+        if not author:
+            author_m = re.search(
+                r'(?is)<cite\b[^>]*>\s*<a\b[^>]*>(.*?)</a>',
+                scope_html,
+            )
+            if author_m:
+                author = _strip_tags(author_m.group(1))
+        if not author:
+            # Guest pages can have plain text inside <cite> without an anchor.
+            author_m = re.search(r'(?is)<cite\b[^>]*>(.*?)</cite>', scope_html)
+            if author_m:
+                author = _strip_tags(author_m.group(1))
+        author = re.sub(r"\s+", " ", (author or "")).strip()
+        if re.fullmatch(r"\d+", author or ""):
+            author = ""
+        if not author:
+            author = "未知用户"
+
+        pm = post_pat.search(table_html)
+        if not pm:
+            continue
+        post_html = extract_balanced_tag_inner(table_html, pm)
+        if not post_html:
+            continue
+        floor_entries.append((floor, author, post_html))
+
+    if not floor_entries:
+        return []
+
+    noise_patterns = [
+        r"^本帖最后由.+编辑$",
+        r"^附件:\s*您所在的用户组无法下载或查看附件$",
+        r"^\[\s*本帖最后由.+编辑\s*\]$",
+        r"^发表于\s+\d{4}-\d{1,2}-\d{1,2}.*$",
+        r"^只看该作者$",
+    ]
+
+    seen: set[str] = set()
+    seen: set[str] = set()
+    for floor, author, post_html in floor_entries:
+        # Normalize line breaks first so each floor remains readable.
+        normalized = re.sub(r"(?is)<br\s*/?>", "\n", post_html)
+        normalized = re.sub(r"(?is)</p\s*>", "\n", normalized)
+        normalized = re.sub(r"(?is)</blockquote\s*>", "\n", normalized)
+        normalized = re.sub(r"(?is)</div\s*>", "\n", normalized)
+        plain = re.sub(r"(?is)<[^>]+>", "", normalized)
+        plain = html_std.unescape(plain or "")
+        if not plain:
+            continue
+        lines = [re.sub(r"\s+", " ", ln).strip() for ln in plain.splitlines()]
+
+        cleaned_lines: list[str] = []
+        for line in lines:
+            t = line.strip()
+            if not t:
+                continue
+            # Drop forum structural actions/buttons.
+            if re.search(r"(发短消息|加为好友|使用道具|报告|评分|回复 # 的帖子)$", t):
+                continue
+            if any(re.search(pat, t, re.I) for pat in noise_patterns):
+                continue
+            # Keep platform line optional, but keep real content.
+            if re.match(r"^posted by wap,\s*platform:", t, re.I):
+                continue
+            if len(t) < 6:
+                continue
+            cleaned_lines.append(t)
+        if not cleaned_lines:
+            continue
+        merged = "\n".join(cleaned_lines)
+        key = f"{floor}|{author}|{merged}".lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        blocks.append(("h3", f"{floor}楼 @{author}"))
+        blocks.append(("p", merged))
+
+    return blocks[:220]
+
+
+PRE_PRIMARY_ACTIONS["discuz_thread_posts"] = extract_discuz_thread_blocks
+
+
 class ConfigSiteRule(BaseSiteRule):
     def __init__(self, rule_key: str, cfg: dict[str, Any]):
         self.rule_key = rule_key
@@ -554,6 +674,38 @@ def fetch_html_with_retry(url: str, timeout: int = 10) -> tuple[str, bytes]:
     raise RuntimeError("抓取失败: 未知网络错误")
 
 
+def _extract_meta_charset(raw: bytes) -> str:
+    # Parse charset from early HTML bytes using latin-1 to avoid decode failures.
+    head = raw[:8192].decode("latin-1", errors="ignore")
+    m = re.search(r'(?is)<meta[^>]+charset=["\']?\s*([a-zA-Z0-9._-]+)\s*["\']?', head)
+    if m:
+        return m.group(1).strip().lower()
+    m = re.search(r'(?is)<meta[^>]+content=["\'][^"\']*charset=([a-zA-Z0-9._-]+)[^"\']*["\']', head)
+    if m:
+        return m.group(1).strip().lower()
+    return ""
+
+
+def _decode_html_bytes(raw: bytes, preferred_encoding: str = "") -> str:
+    candidates: list[str] = []
+    pref = (preferred_encoding or "").strip().lower()
+    if pref:
+        candidates.append(pref)
+    meta_charset = _extract_meta_charset(raw)
+    if meta_charset and meta_charset not in candidates:
+        candidates.append(meta_charset)
+    for enc in ("utf-8", "gb18030", "big5", "latin-1"):
+        if enc not in candidates:
+            candidates.append(enc)
+
+    for enc in candidates:
+        try:
+            return raw.decode(enc, errors="strict")
+        except (LookupError, UnicodeDecodeError):
+            continue
+    return raw.decode("utf-8", errors="replace")
+
+
 def _strip_tags(value: str) -> str:
     s = re.sub(r"(?is)<[^>]+>", " ", value or "")
     s = html_std.unescape(s)
@@ -682,12 +834,15 @@ def _try_economist_archive_snapshot(url: str, timeout: int = 10) -> tuple[str, l
 
 def parse_link_to_markdown(url: str, timeout: int = 10) -> ParseOutput:
     fetched_url, raw = fetch_html_with_retry(url, timeout=timeout)
-    text = raw.decode("utf-8", errors="replace")
-    text = strip_blocked_scripts(text)
-
     parsed = urlparse(fetched_url)
     host = parsed.netloc
     rule = choose_rule(host)
+    preferred_encoding = ""
+    if isinstance(rule, ConfigSiteRule):
+        preferred_encoding = str(rule.cfg.get("preferred_encoding") or "").strip()
+
+    text = _decode_html_bytes(raw, preferred_encoding=preferred_encoding)
+    text = strip_blocked_scripts(text)
 
     parser = ArticleExtractor()
     parser.feed(text)

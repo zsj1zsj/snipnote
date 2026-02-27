@@ -315,6 +315,28 @@
       "image_drop_keywords": ["logo", "icon", "avatar", "favicon", "banner", "ads", "qrcode"],
       "max_images": 2
     },
+    "tgfcer_bbs": {
+      "domains": ["bbs.tgfcer.com", "tgfcer.com"],
+      "pre_primary_actions": ["discuz_thread_posts"],
+      "drop_patterns": [
+        "^\\s*首页\\s*$",
+        "^\\s*帮助\\s*$",
+        "^\\s*登录\\s*$",
+        "^\\s*注册\\s*$",
+        "^\\s*打印\\s*$",
+        "^\\s*发新话题\\s*$",
+        "^\\s*发布投票\\s*$",
+        "^\\s*发布商品\\s*$",
+        "^\\s*发布悬赏\\s*$",
+        "^\\s*发布活动\\s*$",
+        "^\\s*发布辩论\\s*$",
+        "^\\s*发布视频\\s*$"
+      ],
+      "image_drop_keywords": ["logo", "icon", "avatar", "banner", "ads", "favicon", "qrcode"],
+      "max_images": 2,
+      "min_blocks": 2,
+      "min_blocks_error": "未提取到论坛帖正文。"
+    },
     "liaoxuefeng": {
       "domains": ["liaoxuefeng.com", "www.liaoxuefeng.com"],
       "primary_container_ids": ["gsi-chapter-content", "gsi-chapter"],
