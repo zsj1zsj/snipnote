@@ -321,7 +321,22 @@
         "Start your subscription",
         "^\\s*Share\\s*$",
         "^\\s*Menu\\s*$",
-        "^\\s*Photograph:\\s*"
+        "^\\s*Photograph:\\s*",
+        "^\\s*Share Reuse this content\\s*$",
+        "Handpicked stories",
+        "I agree to receive exclusive content",
+        "^\\s*More from\\s",
+        "^\\s*Sources?:\\s",
+        "^\\s*World\\s*$",
+        "^\\s*Listen to this story",
+        "^\\s*AI Narrated\\s*$",
+        "Discover stories from this section"
+      ],
+      "stop_patterns": [
+        "This article appeared in the .+ section",
+        "^\\s*⇒\\s*Explore the edition",
+        "From the .+ edition$",
+        "^■$"
       ],
       "image_drop_keywords": [
         "logo",

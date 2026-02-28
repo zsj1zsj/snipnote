@@ -858,6 +858,10 @@ def _is_probable_economist_paywall(blocks: list[tuple[str, str]]) -> bool:
 
 
 def _extract_economist_snapshot_blocks(snapshot_html: str) -> tuple[str, list[tuple[str, str]]]:
+    # Detect CAPTCHA / bot-check pages from archive.is
+    lower_html = snapshot_html[:3000].lower()
+    if "captcha" in lower_html or "security check" in lower_html or "one more step" in lower_html:
+        return "", []
     h1_match = re.search(r"(?is)<h1[^>]*>(.*?)</h1>", snapshot_html)
     title = _strip_tags(h1_match.group(1)) if h1_match else ""
     container_html = extract_container_by_id(snapshot_html, "new-article-template")
