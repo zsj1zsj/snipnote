@@ -51,6 +51,28 @@ PARSER_RULES = load_parser_rules()
 BLOCKED_SCRIPT_SOURCES = tuple(PARSER_RULES.get("blocked_script_sources", []))
 
 
+def load_cookies() -> dict[str, dict[str, str]]:
+    """从 cookies.json 读取用户配置的 cookie。
+
+    格式:  { "domain": { "cookie_name": "value", ... }, ... }
+    """
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
+    if not os.path.isfile(path):
+        return {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return {}
+        result: dict[str, dict[str, str]] = {}
+        for domain, cookies in data.items():
+            if isinstance(cookies, dict):
+                result[str(domain)] = {str(k): str(v) for k, v in cookies.items()}
+        return result
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
 class ArticleExtractor(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -622,10 +644,66 @@ def _attempt_fetch(url: str, headers: dict[str, str], timeout: int) -> bytes:
         return resp.read()
 
 
+def _attempt_fetch_with_cookies(
+    url: str,
+    cookies: dict[str, str],
+    timeout: int = 10,
+) -> tuple[str, bytes]:
+    """使用 requests 库抓取需要 cookie 认证的页面。"""
+    import requests as _requests
+
+    parsed = urlparse(url)
+    host = parsed.netloc
+    referer = f"{parsed.scheme}://{host}/"
+    headers = {
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                  "image/avif,image/webp,image/apng,*/*;q=0.8,"
+                  "application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "en,zh;q=0.9,zh-CN;q=0.8,zh-TW;q=0.7,ja;q=0.6",
+        "cache-control": "max-age=0",
+        "dnt": "1",
+        "referer": referer,
+        "sec-ch-ua": '"Not:A-Brand";v="99", "Google Chrome";v="145", "Chromium";v="145"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"macOS"',
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "user-agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/145.0.0.0 Safari/537.36"
+        ),
+    }
+    resp = _requests.get(url, headers=headers, cookies=cookies, timeout=timeout)
+    resp.raise_for_status()
+    ct = (resp.headers.get("Content-Type") or "").lower()
+    if "text/html" not in ct and ct:
+        raise ValueError(f"不支持的内容类型: {ct}")
+    return resp.url, resp.content
+
+
 def fetch_html_with_retry(url: str, timeout: int = 10) -> tuple[str, bytes]:
     parsed = urlparse(url)
     host = parsed.netloc
     referer = f"{parsed.scheme}://{host}/" if parsed.scheme and host else "https://www.google.com/"
+
+    # ── Cookie 认证路径（使用 requests 库）──────────────────────
+    cookies_dict = load_cookies()
+    domain_cookies: dict[str, str] | None = None
+    for domain_key, cookie_val in cookies_dict.items():
+        if host == domain_key or host.endswith(f".{domain_key}"):
+            domain_cookies = cookie_val
+            break
+    if domain_cookies:
+        try:
+            return _attempt_fetch_with_cookies(url, domain_cookies, timeout=timeout)
+        except Exception as exc:
+            raise RuntimeError(f"Cookie 认证抓取失败: {exc}") from exc
+
+    # ── 普通路径（原有 urllib 逻辑，零改动）─────────────────────
     candidates = [url]
     if host.endswith("economist.com") and not url.rstrip("/").endswith("/amp"):
         candidates.append(url.rstrip("/") + "/amp")

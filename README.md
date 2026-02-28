@@ -104,19 +104,26 @@ python3 webui.py --host 127.0.0.1 --port 8787
 
 修改配置后重启 `webui.py` 即可生效，无需改 Python 代码。
 
-### 站点专用抓取参数
+### 需要登录的站点（Cookie 认证）
 
-- `playno1.com` 已支持站点专用请求头策略（含 `Referer`）。
-- 如需复用你的登录态，请在启动前设置环境变量：
+对于需要登录后才能访问的站点（例如论坛），可以在项目根目录创建 `cookies.json`：
 
-```bash
-export PLAYNO1_COOKIE='你的完整 Cookie 字符串'
-python3 webui.py --host 127.0.0.1 --port 8787
+```json
+{
+  "s.tgfcer.com": {
+    "tgc_cookietime": "315360000",
+    "tgc_auth": "你的_auth_cookie_值",
+    "tgc_sid": "你的_sid_cookie_值"
+  }
+}
 ```
 
+获取方式：在浏览器已登录的状态下，打开开发者工具 → Network → 找到对应请求 → 复制 Cookie 中的各字段。
+
 注意：
-- 不要把 Cookie 写入代码或提交到 Git。
-- Cookie 过期后需要重新设置。
+- `cookies.json` 已添加到 `.gitignore`，不会被提交到 Git。
+- Cookie 过期后需手动更新。
+- 支持多域名配置，每个域名一个 dict。
 
 ## 常见问题
 

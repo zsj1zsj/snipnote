@@ -5,7 +5,9 @@
   ],
   "rules": {
     "solidot": {
-      "domains": ["solidot.org"],
+      "domains": [
+        "solidot.org"
+      ],
       "primary_html_patterns": [
         "(?is)<div[^>]*class=[\"'][^\"']*p_mainnew[^\"']*[\"'][^>]*>(.*?)</div>",
         "(?is)<div[^>]*class=[\"'][^\"']*content[^\"']*[\"'][^>]*>(.*?)</div>",
@@ -21,11 +23,20 @@
         "举报邮箱",
         "www\\.solidot\\.org\\s+-"
       ],
-      "image_drop_keywords": ["logo", "avatar", "icon", "wechat", "weibo", "rss"],
+      "image_drop_keywords": [
+        "logo",
+        "avatar",
+        "icon",
+        "wechat",
+        "weibo",
+        "rss"
+      ],
       "max_images": 2
     },
     "ifanr": {
-      "domains": ["ifanr.com"],
+      "domains": [
+        "ifanr.com"
+      ],
       "primary_html_patterns": [
         "(?is)<article[^>]*>(.*?)</article>",
         "(?is)<div[^>]*class=[\"'][^\"']*(?:post-content|article-content|single-content|c-single-content)[^\"']*[\"'][^>]*>(.*?)</div>",
@@ -52,11 +63,21 @@
         "www\\.ifanr\\.com\\s+-",
         "^\\s*图片(\\s*\\d+)?\\s*$"
       ],
-      "image_drop_keywords": ["logo", "icon", "avatar", "wechat", "weibo", "favicon", "qrcode"],
+      "image_drop_keywords": [
+        "logo",
+        "icon",
+        "avatar",
+        "wechat",
+        "weibo",
+        "favicon",
+        "qrcode"
+      ],
       "max_images": 6
     },
     "playno1": {
-      "domains": ["playno1.com"],
+      "domains": [
+        "playno1.com"
+      ],
       "primary_html_patterns": [
         "(?is)<div[^>]*id=[\"']?article_content[\"']?[^>]*>(.*?)</div>",
         "(?is)<td[^>]*id=[\"']?article_content[\"']?[^>]*>(.*?)</td>",
@@ -85,13 +106,26 @@
         "Upgrade-Insecure-Requests": "1"
       },
       "cookie_env_var": "PLAYNO1_COOKIE",
-      "image_drop_keywords": ["logo", "icon", "avatar", "ads", "banner", "qrcode"],
+      "image_drop_keywords": [
+        "logo",
+        "icon",
+        "avatar",
+        "ads",
+        "banner",
+        "qrcode"
+      ],
       "max_images": 12
     },
     "blogjava": {
-      "domains": ["blogjava.net"],
-      "post_clean_actions": ["blog_semantic_filter"],
-      "post_parse_actions": ["hard_filter_blogjava_blocks"],
+      "domains": [
+        "blogjava.net"
+      ],
+      "post_clean_actions": [
+        "blog_semantic_filter"
+      ],
+      "post_parse_actions": [
+        "hard_filter_blogjava_blocks"
+      ],
       "min_blocks": 2,
       "min_blocks_error": "BlogJava 页面仍被模板干扰，未提取到有效正文。请提供页面源码以完成精准规则。",
       "primary_html_patterns": [
@@ -119,13 +153,27 @@
         "聚合",
         "^\\s*图片(\\s*\\d+)?\\s*$"
       ],
-      "image_drop_keywords": ["logo", "avatar", "icon", "rss", "banner", "ads", "qrcode"],
+      "image_drop_keywords": [
+        "logo",
+        "avatar",
+        "icon",
+        "rss",
+        "banner",
+        "ads",
+        "qrcode"
+      ],
       "max_images": 3
     },
     "yahoo_news_jp": {
-      "domains": ["news.yahoo.co.jp"],
-      "pre_primary_actions": ["yahoo_preloaded_state"],
-      "post_clean_actions": ["headline_tail_cut"],
+      "domains": [
+        "news.yahoo.co.jp"
+      ],
+      "pre_primary_actions": [
+        "yahoo_preloaded_state"
+      ],
+      "post_clean_actions": [
+        "headline_tail_cut"
+      ],
       "primary_html_patterns": [
         "(?is)<article[^>]*>(.*?)</article>",
         "(?is)<div[^>]*class=[\"'][^\"']*(?:article|Article|articleBody|mainContents|contentsBody)[^\"']*[\"'][^>]*>(.*?)</div>",
@@ -152,11 +200,21 @@
         "雑誌アクセスランキング",
         "関連記事"
       ],
-      "image_drop_keywords": ["icon", "logo", "sprite", "avatar", "banner", "thumbnail"],
+      "image_drop_keywords": [
+        "icon",
+        "logo",
+        "sprite",
+        "avatar",
+        "banner",
+        "thumbnail"
+      ],
       "max_images": 1
     },
     "medium": {
-      "domains": ["medium.com", "freedium-mirror.cfd"],
+      "domains": [
+        "medium.com",
+        "freedium-mirror.cfd"
+      ],
       "skip_relative_markdown_links": true,
       "primary_html_patterns": [
         "(?is)<article[^>]*>(.*?)</article>",
@@ -228,12 +286,26 @@
           "to": ""
         }
       ],
-      "image_drop_keywords": ["icon", "logo", "avatar", "badge", "glyph", "favicon", "emoji"],
+      "image_drop_keywords": [
+        "icon",
+        "logo",
+        "avatar",
+        "badge",
+        "glyph",
+        "favicon",
+        "emoji"
+      ],
       "max_images": 3
     },
     "economist": {
-      "domains": ["economist.com", "www.economist.com"],
-      "primary_container_ids": ["new-article-template", "CONTENT"],
+      "domains": [
+        "economist.com",
+        "www.economist.com"
+      ],
+      "primary_container_ids": [
+        "new-article-template",
+        "CONTENT"
+      ],
       "primary_html_patterns": [
         "(?is)<article[^>]*id=[\"']?new-article-template[\"']?[^>]*>(.*?)</article>",
         "(?is)<div[^>]*id=[\"']?CONTENT[\"']?[^>]*>(.*?)</div>",
@@ -251,14 +323,28 @@
         "^\\s*Menu\\s*$",
         "^\\s*Photograph:\\s*"
       ],
-      "image_drop_keywords": ["logo", "icon", "avatar", "banner", "ads", "sprite", "favicon"],
+      "image_drop_keywords": [
+        "logo",
+        "icon",
+        "avatar",
+        "banner",
+        "ads",
+        "sprite",
+        "favicon"
+      ],
       "max_images": 2,
       "min_blocks": 2,
       "min_blocks_error": "未提取到足够正文，经济学人页面可能受付费墙限制。"
     },
     "cnblogs": {
-      "domains": ["cnblogs.com", "www.cnblogs.com"],
-      "primary_container_ids": ["cnblogs_post_body", "post_detail"],
+      "domains": [
+        "cnblogs.com",
+        "www.cnblogs.com"
+      ],
+      "primary_container_ids": [
+        "cnblogs_post_body",
+        "post_detail"
+      ],
       "primary_html_patterns": [
         "(?is)<div[^>]*id=[\"']?cnblogs_post_body[\"']?[^>]*>(.*?)</div>",
         "(?is)<div[^>]*class=[\"'][^\"']*(?:postBody|post-body|entry-content|article-content)[^\"']*[\"'][^>]*>(.*?)</div>",
@@ -312,12 +398,27 @@
         "^www\\.cnblogs\\.com\\s+-",
         "^博客园$"
       ],
-      "image_drop_keywords": ["logo", "icon", "avatar", "favicon", "banner", "ads", "qrcode"],
+      "image_drop_keywords": [
+        "logo",
+        "icon",
+        "avatar",
+        "favicon",
+        "banner",
+        "ads",
+        "qrcode"
+      ],
       "max_images": 2
     },
     "tgfcer_bbs": {
-      "domains": ["bbs.tgfcer.com", "tgfcer.com"],
-      "pre_primary_actions": ["discuz_thread_posts"],
+      "domains": [
+        "bbs.tgfcer.com",
+        "tgfcer.com",
+        "s.tgfcer.com"
+      ],
+      "pre_primary_actions": [
+        "discuz_thread_posts"
+      ],
+      "preferred_encoding": "gbk",
       "drop_patterns": [
         "^\\s*首页\\s*$",
         "^\\s*帮助\\s*$",
@@ -332,14 +433,28 @@
         "^\\s*发布辩论\\s*$",
         "^\\s*发布视频\\s*$"
       ],
-      "image_drop_keywords": ["logo", "icon", "avatar", "banner", "ads", "favicon", "qrcode"],
+      "image_drop_keywords": [
+        "logo",
+        "icon",
+        "avatar",
+        "banner",
+        "ads",
+        "favicon",
+        "qrcode"
+      ],
       "max_images": 2,
       "min_blocks": 2,
       "min_blocks_error": "未提取到论坛帖正文。"
     },
     "liaoxuefeng": {
-      "domains": ["liaoxuefeng.com", "www.liaoxuefeng.com"],
-      "primary_container_ids": ["gsi-chapter-content", "gsi-chapter"],
+      "domains": [
+        "liaoxuefeng.com",
+        "www.liaoxuefeng.com"
+      ],
+      "primary_container_ids": [
+        "gsi-chapter-content",
+        "gsi-chapter"
+      ],
       "primary_html_patterns": [
         "(?is)<div[^>]*id=[\"']?gsi-chapter-content[\"']?[^>]*>(.*?)</div>",
         "(?is)<div[^>]*id=[\"']?gsi-chapter[\"']?[^>]*>(.*?)</div>",
@@ -368,7 +483,14 @@
         "^\\s*oauth comment\\s*$",
         "^\\s*footer\\s*$"
       ],
-      "image_drop_keywords": ["logo", "icon", "avatar", "favicon", "qlogo", "qrcode"],
+      "image_drop_keywords": [
+        "logo",
+        "icon",
+        "avatar",
+        "favicon",
+        "qlogo",
+        "qrcode"
+      ],
       "max_images": 3
     }
   }
