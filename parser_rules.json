@@ -327,7 +327,8 @@
         "I agree to receive exclusive content",
         "^\\s*More from\\s",
         "^\\s*Sources?:\\s",
-        "^\\s*World\\s*$",
+        "^\\s*\\[?World\\]?[^a-zA-Z]*$",
+        "^\\s*\\[?China\\]?[^a-zA-Z]*$",
         "^\\s*Listen to this story",
         "^\\s*AI Narrated\\s*$",
         "Discover stories from this section"
@@ -335,8 +336,10 @@
       "stop_patterns": [
         "This article appeared in the .+ section",
         "^\\s*⇒\\s*Explore the edition",
-        "From the .+ edition$",
-        "^■$"
+        "From the .+ edition$"
+      ],
+      "stop_after_patterns": [
+        "■\\s*$"
       ],
       "image_drop_keywords": [
         "logo",

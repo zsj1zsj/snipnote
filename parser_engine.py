@@ -532,6 +532,7 @@ class ConfigSiteRule(BaseSiteRule):
         drop_exact = {str(x) for x in (self.cfg.get("drop_exact", []) or [])}
         drop_patterns = [str(x) for x in (self.cfg.get("drop_patterns", []) or [])]
         stop_patterns = [str(x) for x in (self.cfg.get("stop_patterns", []) or [])]
+        stop_after_patterns = [str(x) for x in (self.cfg.get("stop_after_patterns", []) or [])]
         replacements = self.cfg.get("text_replacements", []) or []
         skip_rel_links = bool(self.cfg.get("skip_relative_markdown_links", False))
 
@@ -552,6 +553,8 @@ class ConfigSiteRule(BaseSiteRule):
                 break
             if any(re.search(pat, cleaned, re.I) for pat in drop_patterns):
                 continue
+            # stop_after_patterns: keep this block and then stop.
+            stop_after = any(re.search(pat, cleaned, re.I) for pat in stop_after_patterns)
             for repl in replacements:
                 if not isinstance(repl, dict):
                     continue
@@ -565,6 +568,8 @@ class ConfigSiteRule(BaseSiteRule):
             if (not is_pre) and is_too_short(cleaned, tag):
                 continue
             result.append((tag, cleaned))
+            if stop_after:
+                break
 
         for action_name in self.cfg.get("post_clean_actions", []) or []:
             action = POST_CLEAN_ACTIONS.get(str(action_name))
@@ -812,7 +817,7 @@ def _get_archive_snapshot_url(url: str, timeout: int) -> str | None:
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
         "Referer": "https://archive.is/",
     }
-    check_url = f"https://archive.is/{quote(url, safe='')}"
+    check_url = f"https://archive.is/{quote(url)}"
     try:
         r = _requests.get(check_url, headers=headers, timeout=timeout, allow_redirects=True)
         if r.status_code != 200:
@@ -958,10 +963,10 @@ def parse_link_to_markdown(url: str, timeout: int = 10) -> ParseOutput:
     else:
         candidates = [blocks, fallback_blocks, jsonld_blocks, meta_blocks]
         chosen_blocks = max(candidates, key=blocks_quality)
-    if rule:
-        chosen_blocks = rule.clean_blocks(chosen_blocks)
-        image_urls = rule.clean_images(image_urls)
-        chosen_blocks = rule.post_parse_blocks(chosen_blocks)
+
+    # Economist paywall check BEFORE clean_blocks, so stop_patterns
+    # don't strip the paywall signals that _is_probable_economist_paywall
+    # relies on (e.g. "explore the edition", "appeared in the...section").
     if host.endswith("economist.com"):
         min_required = rule.min_blocks() if rule else 0
         if _is_probable_economist_paywall(chosen_blocks) or (min_required and len(chosen_blocks) < min_required):
@@ -971,9 +976,11 @@ def parse_link_to_markdown(url: str, timeout: int = 10) -> ParseOutput:
                 if snapshot_title:
                     title = snapshot_title
                 chosen_blocks = snapshot_blocks
-                if rule:
-                    chosen_blocks = rule.clean_blocks(chosen_blocks)
-                    chosen_blocks = rule.post_parse_blocks(chosen_blocks)
+
+    if rule:
+        chosen_blocks = rule.clean_blocks(chosen_blocks)
+        image_urls = rule.clean_images(image_urls)
+        chosen_blocks = rule.post_parse_blocks(chosen_blocks)
 
     if rule and len(chosen_blocks) < rule.min_blocks():
         raise ValueError(rule.min_blocks_error())
