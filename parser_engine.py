@@ -956,7 +956,12 @@ def parse_link_to_markdown(url: str, timeout: int = 10) -> ParseOutput:
     jsonld_blocks = extract_jsonld_blocks(text)[:180]
     meta_blocks = extract_meta_description(text)
     rule_blocks = rule.primary_blocks(text)[:180] if rule else []
-    image_urls = extract_image_urls(text, fetched_url)[:4]
+    container_ids = None
+    max_images = 4
+    if isinstance(rule, ConfigSiteRule):
+        container_ids = rule.cfg.get("primary_container_ids") or None
+        max_images = int(rule.cfg.get("max_images") or 4)
+    image_urls = extract_image_urls(text, fetched_url, container_ids=container_ids)[:max_images]
 
     if rule_blocks:
         chosen_blocks = rule_blocks
@@ -1271,7 +1276,7 @@ def image_dedupe_key(url: str) -> str:
     return f"{parts.scheme.lower()}://{parts.netloc.lower()}{parts.path}"
 
 
-def extract_image_urls(raw_html: str, page_url: str) -> list[str]:
+def extract_image_urls(raw_html: str, page_url: str, container_ids: list[str] | None = None) -> list[str]:
     chosen: dict[str, tuple[str, int]] = {}
 
     def add(url: str):
@@ -1319,8 +1324,17 @@ def extract_image_urls(raw_html: str, page_url: str) -> list[str]:
             elif isinstance(image_value, dict):
                 add(str(image_value.get("url") or image_value.get("contentUrl") or ""))
 
-    area_match = re.search(r"(?is)<(article|main)[^>]*>(.*?)</\1>", raw_html)
-    area = area_match.group(2) if area_match else raw_html
+    # Try container_ids first, then <article>/<main>, then full HTML.
+    area = None
+    if container_ids:
+        for cid in container_ids:
+            container = extract_container_by_id(raw_html, cid)
+            if container:
+                area = container
+                break
+    if area is None:
+        area_match = re.search(r"(?is)<(article|main)[^>]*>(.*?)</\1>", raw_html)
+        area = area_match.group(2) if area_match else raw_html
     for m in re.finditer(r"(?is)<img[^>]+>", area):
         tag = m.group(0)
         src_match = re.search(r'(?i)\b(?:src|data-src|data-original|data-lazy-src)=["\'](.*?)["\']', tag)

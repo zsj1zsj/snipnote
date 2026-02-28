@@ -78,6 +78,9 @@
       "domains": [
         "playno1.com"
       ],
+      "primary_container_ids": [
+        "article_content"
+      ],
       "primary_html_patterns": [
         "(?is)<div[^>]*id=[\"']?article_content[\"']?[^>]*>(.*?)</div>",
         "(?is)<td[^>]*id=[\"']?article_content[\"']?[^>]*>(.*?)</td>",
