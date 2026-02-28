@@ -806,24 +806,36 @@ def _extract_archive_snapshot_url(raw_html: str) -> str | None:
 
 
 def _get_archive_snapshot_url(url: str, timeout: int) -> str | None:
+    import requests as _requests
+
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
         "Referer": "https://archive.is/",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     }
     check_url = f"https://archive.is/{quote(url, safe='')}"
     try:
-        raw = _attempt_fetch(check_url, headers, timeout)
+        r = _requests.get(check_url, headers=headers, timeout=timeout, allow_redirects=True)
+        if r.status_code != 200:
+            return None
+        html = r.text
     except Exception:
         return None
-    html = raw.decode("utf-8", errors="replace")
     return _extract_archive_snapshot_url(html)
 
 
 def _is_probable_economist_paywall(blocks: list[tuple[str, str]]) -> bool:
     if not blocks:
         return True
-    joined = " ".join(text for _, text in blocks[:20]).lower()
+    joined = " ".join(text for _, text in blocks[:30]).lower()
+    # Strong paywall signals: if any of these appear, it's definitely paywalled.
+    strong_signals = [
+        "explore the edition",
+        "appeared in the",
+        "reuse this content",
+        "list of contents",
+    ]
+    if any(sig in joined for sig in strong_signals):
+        return True
     paywall_terms = [
         "subscribe",
         "subscriber-only",
@@ -892,18 +904,21 @@ def _extract_economist_snapshot_blocks(snapshot_html: str) -> tuple[str, list[tu
 
 
 def _try_economist_archive_snapshot(url: str, timeout: int = 10) -> tuple[str, list[tuple[str, str]]] | None:
+    import requests as _requests
+
     snapshot_url = _get_archive_snapshot_url(url, timeout)
     if not snapshot_url:
         return None
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
     }
     try:
-        raw = _attempt_fetch(snapshot_url, headers, timeout)
+        resp = _requests.get(snapshot_url, headers=headers, timeout=timeout)
+        if resp.status_code != 200:
+            return None
+        html = resp.text
     except Exception:
         return None
-    html = raw.decode("utf-8", errors="replace")
     title, blocks = _extract_economist_snapshot_blocks(html)
     if not blocks:
         return None
