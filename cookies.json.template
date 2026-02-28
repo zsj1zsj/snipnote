@@ -1,0 +1,6 @@
+{
+  "example.com": {
+    "session_id": "your_session_cookie_value",
+    "auth_token": "your_auth_cookie_value"
+  }
+}
