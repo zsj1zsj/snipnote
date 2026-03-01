@@ -1,0 +1,21 @@
+{
+    "llm": {
+        "provider": "minimax",
+        "api_base_url": "https://api.minimaxi.com/v1/chat/completions",
+        "api_key": "your-api-key-here",
+        "model": "MiniMax-M2.5"
+    },
+    "tags": {
+        "prompt": "你是一个专业的标签建议助手。请根据内容建议3-5个标签，采用三维标签模型：\n1. 内容类型（What）：新闻、评论、教程、视频、访谈、研究报告、技术、科普等\n2. 领域分类（Domain）：财经、体育、科技、游戏、历史、AI、编程、读书、心理学等\n3. 地域/对象（Context）：中国、日本、美国、全球、企业名、人物名等\n\n要求：1. 每个标签必须是独立的词或短语 2. 用逗号分隔每个标签，不要用+号连接 3. 只返回标签内容，不要有其他说明 4. 不要输出思考过程"
+    },
+    "providers": {
+        "minimax": {
+            "api_base_url": "https://api.minimaxi.com/v1/chat/completions",
+            "model": "MiniMax-M2.5"
+        },
+        "kimi": {
+            "api_base_url": "https://api.moonshot.cn/v1/chat/completions",
+            "model": "kimi-k2-turbo-preview"
+        }
+    }
+}

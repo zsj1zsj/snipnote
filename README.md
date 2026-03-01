@@ -210,6 +210,9 @@ AI 功能支持配置不同的 LLM 提供商，配置文件为 `config.json`：
         "api_base_url": "https://api.minimaxi.com/v1/chat/completions",
         "api_key": "your-api-key",
         "model": "MiniMax-M2.5"
+    },
+    "tags": {
+        "prompt": "你是一个专业的标签建议助手。请根据内容建议3-5个标签，采用三维标签模型：\n1. 内容类型（What）：新闻、评论、教程，视频、访谈，研究报告、技术、科普等\n2. 领域分类（Domain）：财经、体育、科技、游戏、历史、AI、编程、读书、心理学等\n3. 地域/对象（Context）：中国、日本、美国、全球，企业名、人物名等\n\n组合示例：新闻+财经+中国、评论+AI+OpenAI、教程+编程+Java\n\n要求：1. 使用中文标签 2. 只返回标签，用逗号分隔"
     }
 }
 ```

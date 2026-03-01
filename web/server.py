@@ -2797,7 +2797,7 @@ def make_handler(app: App):
                 text = row["text"] or ""
                 existing_tags = row["tags"] or ""
                 # Get AI suggested tags
-                suggested = ai_suggest_tags(text)
+                suggested = ai_suggest_tags(text, existing_tags)
                 # Merge with existing tags
                 all_tags = normalize_tags(existing_tags)
                 if all_tags:
