@@ -116,3 +116,13 @@ Economist.com has special handling - auto-fallback to archive.is snapshots when 
 - `cookies.json` follows format: `{ "domain.com": { "cookie_name": "value" } }`
 - The Web UI embeds all HTML/CSS/JS inline (no separate frontend files)
 - New modules can be imported directly: `from storage import connect`, `from scheduler import SM2Scheduler`
+
+## Testing
+
+**Always run unit tests before committing:**
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+Make sure all tests pass before committing code changes.
