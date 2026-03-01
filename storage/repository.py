@@ -126,6 +126,14 @@ class HighlightRepository:
         )
         self.conn.commit()
 
+    def update_summary(self, highlight_id: int, summary: str) -> None:
+        """Update the summary of a highlight."""
+        self.conn.execute(
+            "UPDATE highlights SET summary = ? WHERE id = ?",
+            (summary, highlight_id),
+        )
+        self.conn.commit()
+
     def delete(self, highlight_id: int) -> None:
         """Delete a highlight (annotations are cascade deleted)."""
         self.conn.execute("DELETE FROM highlights WHERE id = ?", (highlight_id,))

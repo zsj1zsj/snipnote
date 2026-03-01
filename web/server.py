@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, parse_qsl, urlencode, urljoin, urlparse, urls
 from urllib.request import Request, urlopen
 
 from parser import parse_link_to_markdown
+from ai import summarize as ai_summarize, suggest_tags as ai_suggest_tags
 from storage import connect
 from scheduler import SM2Scheduler
 
@@ -1303,7 +1304,7 @@ def fetch_due(
         order_clause = "next_review, id"
     return conn.execute(
         f"""
-        SELECT id, text, source, author, tags, favorite, is_read, repetitions, next_review, interval_days, efactor, created_at
+        SELECT id, text, source, author, tags, summary, favorite, is_read, repetitions, next_review, interval_days, efactor, created_at
         FROM highlights
         WHERE date(next_review) <= date(?)
         ORDER BY {order_clause}
@@ -1316,7 +1317,7 @@ def fetch_due(
 def fetch_recent(conn: sqlite3.Connection, limit: int = 20) -> list[sqlite3.Row]:
     return conn.execute(
         """
-        SELECT id, text, source, author, tags, favorite, is_read, repetitions, next_review
+        SELECT id, text, source, author, tags, summary, favorite, is_read, repetitions, next_review
         FROM highlights
         ORDER BY id DESC
         LIMIT ?
@@ -1354,7 +1355,7 @@ def fetch_recent_filtered(
 
     return conn.execute(
         f"""
-        SELECT id, text, source, author, tags, favorite, is_read, repetitions, next_review
+        SELECT id, text, source, author, tags, summary, favorite, is_read, repetitions, next_review
         FROM highlights
         WHERE {where_sql}
         ORDER BY id DESC
@@ -1381,7 +1382,7 @@ def fetch_favorites_filtered(conn: sqlite3.Connection, keyword: str, tag: str, l
     params.append(limit)
     return conn.execute(
         f"""
-        SELECT id, text, source, author, tags, favorite, is_read, repetitions, next_review
+        SELECT id, text, source, author, tags, summary, favorite, is_read, repetitions, next_review
         FROM highlights
         WHERE {where_sql}
         ORDER BY id DESC
@@ -1551,6 +1552,28 @@ def read_button(highlight_id: int, is_read: bool, return_to: str) -> str:
     )
 
 
+def summary_button(highlight_id: int, return_to: str) -> str:
+    safe_return = html.escape(return_to, quote=True)
+    return (
+        "<form method='post' action='/highlight/summary' style='display:inline;'>"
+        f"<input type='hidden' name='id' value='{highlight_id}' />"
+        f"<input type='hidden' name='return_to' value='{safe_return}' />"
+        "<button type='submit'>AI总结</button>"
+        "</form>"
+    )
+
+
+def suggest_tags_button(highlight_id: int, return_to: str) -> str:
+    safe_return = html.escape(return_to, quote=True)
+    return (
+        "<form method='post' action='/highlight/suggest-tags' style='display:inline;'>"
+        f"<input type='hidden' name='id' value='{highlight_id}' />"
+        f"<input type='hidden' name='return_to' value='{safe_return}' />"
+        "<button type='submit'>建议标签</button>"
+        "</form>"
+    )
+
+
 def detail_title_link(highlight_id: int, label: str) -> str:
     return f"<a href='/highlight?id={highlight_id}'>{html.escape(label)}</a>"
 
@@ -1599,6 +1622,10 @@ def make_handler(app: App):
                 return self.handle_favorite_submit()
             if path == "/highlight/read":
                 return self.handle_read_submit()
+            if path == "/highlight/summary":
+                return self.handle_summary_submit()
+            if path == "/highlight/suggest-tags":
+                return self.handle_suggest_tags_submit()
             if path == "/review/score":
                 return self.handle_score_submit()
             if path == "/tags/create":
@@ -1661,9 +1688,14 @@ def make_handler(app: App):
             cards = []
             for row in due:
                 title_label = card_title_label(row)
-                body_md = strip_leading_duplicate_title(row["text"], row["source"] if "source" in row.keys() else "")
-                preview = markdown_preview_text(body_md, 100)
-                preview_html = f"<p>{render_inline(preview)}</p>" if preview else "<p></p>"
+                # Show summary if exists, otherwise show preview
+                summary = row.get("summary") or ""
+                if summary:
+                    preview_html = f"<p><strong>AI 总结：</strong>{html.escape(summary[:200])}</p>"
+                else:
+                    body_md = strip_leading_duplicate_title(row["text"], row["source"] if "source" in row.keys() else "")
+                    preview = markdown_preview_text(body_md, 100)
+                    preview_html = f"<p>{render_inline(preview)}</p>" if preview else "<p></p>"
                 actions = (
                     "<div class='row-actions'>"
                     f"<a href='/highlight?id={row['id']}'>查看并批注</a>"
@@ -1908,9 +1940,14 @@ def make_handler(app: App):
             blocks = []
             for row in rows:
                 title_label = card_title_label(row)
-                body_md = strip_leading_duplicate_title(row["text"], row["source"] if "source" in row.keys() else "")
-                preview = markdown_preview_text(body_md, 100)
-                preview_html = f"<p>{render_inline(inject_highlight_markers(preview, keyword))}</p>" if preview else "<p></p>"
+                # Show summary if exists, otherwise show preview
+                summary = row.get("summary") or ""
+                if summary:
+                    preview_html = f"<p><strong>AI 总结：</strong>{html.escape(summary[:200])}</p>"
+                else:
+                    body_md = strip_leading_duplicate_title(row["text"], row["source"] if "source" in row.keys() else "")
+                    preview = markdown_preview_text(body_md, 100)
+                    preview_html = f"<p>{render_inline(inject_highlight_markers(preview, keyword))}</p>" if preview else "<p></p>"
                 actions = (
                     "<div class='row-actions'>"
                     f"<a href='/highlight?id={row['id']}'>查看并批注</a>"
@@ -2114,7 +2151,7 @@ def make_handler(app: App):
             with app.conn() as conn:
                 row = conn.execute(
                     """
-                    SELECT id, text, source, author, location, tags, favorite, is_read, next_review
+                    SELECT id, text, source, author, location, tags, summary, favorite, is_read, next_review
                     FROM highlights
                     WHERE id = ?
                     """,
@@ -2128,7 +2165,7 @@ def make_handler(app: App):
                     conn.commit()
                     row = conn.execute(
                         """
-                        SELECT id, text, source, author, location, tags, favorite, is_read, next_review
+                        SELECT id, text, source, author, location, tags, summary, favorite, is_read, next_review
                         FROM highlights
                         WHERE id = ?
                         """,
@@ -2554,12 +2591,15 @@ def make_handler(app: App):
                 "<button type='submit'>追加标签</button>"
                 "</form>"
                 "<div class='row-actions'>"
+                f"{summary_button(row['id'], detail_return_to)}"
+                f"{suggest_tags_button(row['id'], detail_return_to)}"
                 f"{read_button(row['id'], bool(row['is_read']), detail_read_return_to)}"
                 f"{favorite_button(row['id'], bool(row['favorite']), detail_return_to)}"
                 f"{delete_button(row['id'], '/highlights')}"
                 "</div>"
                 f"{location_html}"
-                f"<div class='md' id='article-content'>{rendered}</div>"
+                + (f"<div class='md' style='background:#f0f9ff;padding:10px;border-radius:4px;margin-bottom:10px'><strong>AI 总结：</strong>{html.escape(row['summary'] or '')}</div>" if row.get("summary") else "")
+                + f"<div class='md' id='article-content'>{rendered}</div>"
                 "</div>"
                 f"{interaction_html}"
                 "<h2>批注记录</h2>"
@@ -2708,6 +2748,64 @@ def make_handler(app: App):
                     return
                 new_is_read = 0 if int(row["is_read"] or 0) == 1 else 1
                 conn.execute("UPDATE highlights SET is_read = ? WHERE id = ?", (new_is_read, highlight_id))
+                conn.commit()
+            self.redirect(return_to)
+
+        def handle_summary_submit(self):
+            form = self.read_form()
+            try:
+                highlight_id = int(form.get("id", "0"))
+            except ValueError:
+                highlight_id = 0
+            return_to = form.get("return_to", "/highlights").strip() or "/highlights"
+            if highlight_id <= 0:
+                self.respond(HTTPStatus.BAD_REQUEST, page_layout("错误", "<h1>参数错误</h1>"))
+                return
+            if not return_to.startswith("/"):
+                return_to = "/highlights"
+
+            with app.conn() as conn:
+                row = conn.execute("SELECT text FROM highlights WHERE id = ?", (highlight_id,)).fetchone()
+                if row is None:
+                    self.respond(HTTPStatus.NOT_FOUND, page_layout("错误", "<h1>摘录不存在</h1>"))
+                    return
+                text = row["text"] or ""
+                # Generate summary using AI
+                summary = ai_summarize(text)
+                conn.execute("UPDATE highlights SET summary = ? WHERE id = ?", (summary, highlight_id))
+                conn.commit()
+            self.redirect(return_to)
+
+        def handle_suggest_tags_submit(self):
+            form = self.read_form()
+            try:
+                highlight_id = int(form.get("id", "0"))
+            except ValueError:
+                highlight_id = 0
+            return_to = form.get("return_to", "/highlights").strip() or "/highlights"
+            if highlight_id <= 0:
+                self.respond(HTTPStatus.BAD_REQUEST, page_layout("错误", "<h1>参数错误</h1>"))
+                return
+            if not return_to.startswith("/"):
+                return_to = "/highlights"
+
+            with app.conn() as conn:
+                row = conn.execute("SELECT text, tags FROM highlights WHERE id = ?", (highlight_id,)).fetchone()
+                if row is None:
+                    self.respond(HTTPStatus.NOT_FOUND, page_layout("错误", "<h1>摘录不存在</h1>"))
+                    return
+                text = row["text"] or ""
+                existing_tags = row["tags"] or ""
+                # Get AI suggested tags
+                suggested = ai_suggest_tags(text)
+                # Merge with existing tags
+                all_tags = normalize_tags(existing_tags)
+                if all_tags:
+                    all_tags = f"{all_tags}, {', '.join(suggested)}"
+                else:
+                    all_tags = ", ".join(suggested)
+                all_tags = normalize_tags(all_tags)
+                conn.execute("UPDATE highlights SET tags = ? WHERE id = ?", (all_tags, highlight_id))
                 conn.commit()
             self.redirect(return_to)
 

@@ -13,6 +13,7 @@ class Highlight:
     author: str = ""
     location: str = ""
     tags: str = ""
+    summary: str = ""
     created_at: str = ""
     last_reviewed: Optional[str] = None
     next_review: str = ""

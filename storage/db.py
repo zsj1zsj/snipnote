@@ -45,5 +45,7 @@ def connect(db_path: Path) -> sqlite3.Connection:
         conn.execute("ALTER TABLE highlights ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0")
     if "is_read" not in cols:
         conn.execute("ALTER TABLE highlights ADD COLUMN is_read INTEGER NOT NULL DEFAULT 0")
+    if "summary" not in cols:
+        conn.execute("ALTER TABLE highlights ADD COLUMN summary TEXT DEFAULT ''")
     conn.commit()
     return conn
