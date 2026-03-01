@@ -995,6 +995,7 @@ def page_layout(title: str, body: str) -> str:
       <a href="/add-link" title="快捷键 {html.escape(add_link_hint, quote=True)}">添加链接</a>
       <a href="/highlights">全部摘录</a>
       <a href="/favorites">Favorites</a>
+      <a href="/tags">标签管理</a>
     </div>
     {body}
   </div>
@@ -1256,6 +1257,37 @@ def fetch_counts(conn: sqlite3.Connection) -> dict:
     ).fetchone()["c"]
     total = conn.execute("SELECT COUNT(*) as c FROM highlights").fetchone()["c"]
     return {"due": due, "total": total}
+
+
+def fetch_all_tags(conn: sqlite3.Connection) -> list[tuple[str, int]]:
+    """Fetch all unique tags with their usage count."""
+    rows = conn.execute("SELECT id, tags FROM highlights WHERE tags != ''").fetchall()
+    tag_counts: dict[str, int] = {}
+    for row in rows:
+        tags_str = row["tags"] or ""
+        # Split by comma or semicolon
+        tags = re.split(r"[,，;；]+", tags_str)
+        for tag in tags:
+            tag = tag.strip()
+            if tag:
+                tag_lower = tag.lower()
+                if tag_lower in tag_counts:
+                    tag_counts[tag_lower] += 1
+                else:
+                    tag_counts[tag_lower] = 1
+    # Return sorted by count descending, then alphabetically
+    result = []
+    seen: set[str] = set()
+    for row in rows:
+        tags_str = row["tags"] or ""
+        tags = re.split(r"[,，;；]+", tags_str)
+        for tag in tags:
+            tag = tag.strip()
+            if tag and tag.lower() not in seen:
+                seen.add(tag.lower())
+                result.append((tag, tag_counts.get(tag.lower(), 0)))
+    result.sort(key=lambda x: (-x[1], x[0].lower()))
+    return result
 
 
 def fetch_due(
@@ -1540,6 +1572,8 @@ def make_handler(app: App):
                 return self.handle_highlights()
             if path == "/favorites":
                 return self.handle_favorites()
+            if path == "/tags":
+                return self.handle_tags()
             if path == "/highlight":
                 return self.handle_highlight_detail()
             if path == "/daily":
@@ -1567,6 +1601,12 @@ def make_handler(app: App):
                 return self.handle_read_submit()
             if path == "/review/score":
                 return self.handle_score_submit()
+            if path == "/tags/create":
+                return self.handle_tag_create()
+            if path == "/tags/rename":
+                return self.handle_tag_rename()
+            if path == "/tags/delete":
+                return self.handle_tag_delete()
             self.respond(HTTPStatus.NOT_FOUND, page_layout("404", "<h1>Not found</h1>"))
 
         def read_form(self) -> dict:
@@ -1962,6 +2002,101 @@ def make_handler(app: App):
                 + "".join(blocks)
             )
             self.respond(HTTPStatus.OK, page_layout("Favorites", body))
+
+        def handle_tags(self):
+            with app.conn() as conn:
+                tags = fetch_all_tags(conn)
+            if not tags:
+                body = (
+                    "<h1>标签管理</h1>"
+                    "<p>暂无标签。</p>"
+                    "<form method='post' action='/tags/create'>"
+                    "<input name='tag' placeholder='新标签名称' required />"
+                    "<button type='submit'>创建</button></form>"
+                )
+                self.respond(HTTPStatus.OK, page_layout("标签管理", body))
+                return
+            tag_rows = []
+            for tag, count in tags:
+                tag_rows.append(
+                    f"<tr><td>{html.escape(tag)}</td><td>{count}</td>"
+                    f"<td>"
+                    f"<form method='post' action='/tags/rename' style='display:inline'>"
+                    f"<input type='hidden' name='old_tag' value='{html.escape(tag)}' />"
+                    f"<input type='text' name='new_tag' placeholder='新名称' required style='width:100px' />"
+                    f"<button type='submit'>改名</button></form> "
+                    f"<form method='post' action='/tags/delete' style='display:inline'>"
+                    f"<input type='hidden' name='tag' value='{html.escape(tag)}' />"
+                    f"<button type='submit' class='danger' onclick='return confirm(\"确定要删除标签「{html.escape(tag)}」吗？\\n所有使用该标签的卡片都会移除该标签。\")'>删除</button>"
+                    f"</form>"
+                    f"</td></tr>"
+                )
+            body = (
+                "<h1>标签管理</h1>"
+                "<p>共 " + str(len(tags)) + " 个标签。</p>"
+                "<form method='post' action='/tags/create' style='margin-bottom:20px'>"
+                "<input name='tag' placeholder='新标签名称' required />"
+                "<button type='submit'>创建</button></form>"
+                "<table><thead><tr><th>标签</th><th>使用次数</th><th>操作</th></tr></thead>"
+                "<tbody>" + "".join(tag_rows) + "</tbody></table>"
+            )
+            self.respond(HTTPStatus.OK, page_layout("标签管理", body))
+
+        def handle_tag_create(self):
+            form = self.read_form()
+            new_tag = (form.get("tag") or "").strip()
+            if not new_tag:
+                self.redirect("/tags")
+                return
+            # Just redirect back - the tag will be created when added to a highlight
+            self.redirect("/tags")
+
+        def handle_tag_rename(self):
+            form = self.read_form()
+            old_tag = (form.get("old_tag") or "").strip()
+            new_tag = (form.get("new_tag") or "").strip()
+            if not old_tag or not new_tag:
+                self.redirect("/tags")
+                return
+            old_tag_lower = old_tag.lower()
+            with app.conn() as conn:
+                rows = conn.execute("SELECT id, tags FROM highlights WHERE tags != ''").fetchall()
+                for row in rows:
+                    tags_str = row["tags"] or ""
+                    tags = re.split(r"[,，;；]+", tags_str)
+                    new_tags = []
+                    for tag in tags:
+                        tag = tag.strip()
+                        if tag.lower() == old_tag_lower:
+                            new_tags.append(new_tag)
+                        elif tag:
+                            new_tags.append(tag)
+                    if new_tags:
+                        conn.execute("UPDATE highlights SET tags = ? WHERE id = ?", (", ".join(new_tags), row["id"]))
+                    else:
+                        conn.execute("UPDATE highlights SET tags = '' WHERE id = ?", (row["id"],))
+                conn.commit()
+            self.redirect("/tags")
+
+        def handle_tag_delete(self):
+            form = self.read_form()
+            tag_to_delete = (form.get("tag") or "").strip()
+            if not tag_to_delete:
+                self.redirect("/tags")
+                return
+            tag_lower = tag_to_delete.lower()
+            with app.conn() as conn:
+                rows = conn.execute("SELECT id, tags FROM highlights WHERE tags != ''").fetchall()
+                for row in rows:
+                    tags_str = row["tags"] or ""
+                    tags = re.split(r"[,，;；]+", tags_str)
+                    new_tags = [t.strip() for t in tags if t.strip() and t.lower() != tag_lower]
+                    if new_tags:
+                        conn.execute("UPDATE highlights SET tags = ? WHERE id = ?", (", ".join(new_tags), row["id"]))
+                    else:
+                        conn.execute("UPDATE highlights SET tags = '' WHERE id = ?", (row["id"],))
+                conn.commit()
+            self.redirect("/tags")
 
         def handle_highlight_detail(self):
             parsed = urlparse(self.path)
