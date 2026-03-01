@@ -76,8 +76,8 @@ python3 webui.py --host 127.0.0.1 --port 8787
 ## 解析规则（配置化）
 
 - 规则引擎支持配置文件：`parser_rules.json`
-- 代码入口仍在：`parser_engine.py`（仅保留通用解析流程与通用动作）
-- 各域名规则全部在 `parser_rules.json` 中维护（`parser_engine.py` 不再内置站点规则）
+- 解析器模块位于：`parser/engine.py`
+- 各域名规则全部在 `parser_rules.json` 中维护（`parser/engine.py` 不再内置站点规则）
 - 当前内置配置：`solidot.org`、`ifanr.com`、`playno1.com`、`blogjava.net`、`news.yahoo.co.jp`、`medium.com`、`economist.com`、`cnblogs.com`、`liaoxuefeng.com`
 - `economist.com` 在疑似 paywall 时会自动尝试通过 `archive.is` 快照抓取正文（无需改现有使用方式）
 - `economist.com` 需要屏蔽的脚本地址也已放入 `parser_rules.json > blocked_script_sources`
@@ -103,6 +103,8 @@ python3 webui.py --host 127.0.0.1 --port 8787
 - `min_blocks` / `min_blocks_error`：最小正文段落数和失败提示（可选）
 
 修改配置后重启 `webui.py` 即可生效，无需改 Python 代码。
+
+如需二次开发，可通过 `from parser import parse_link_to_markdown` 调用解析功能。
 
 ### 需要登录的站点（Cookie 认证）
 
@@ -175,4 +177,19 @@ JSON 示例：
   }
 ]
 ```
-# snipnote
+## 项目结构
+
+```
+├── core/           # 核心领域模型
+├── storage/        # SQLite 数据层
+├── scheduler/      # 复习算法 (SM-2)
+├── parser/        # 网页抓取引擎
+├── web/           # Web UI 服务
+├── cli/           # CLI 入口
+├── ai/            # LLM 插件层（预留）
+├── rss/           # RSS 模块（预留）
+├── plugins/        # 扩展能力（预留）
+└── 根目录         # 向后兼容层
+```
+
+## snipnote
