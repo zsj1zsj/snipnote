@@ -10,6 +10,7 @@ from pathlib import Path
 
 from storage import connect, HighlightRepository
 from scheduler import SM2Scheduler
+from services.report_service import ReportService
 
 
 DEFAULT_DB = Path("data/readlite.db")
@@ -160,6 +161,17 @@ def daily(conn: sqlite3.Connection, args: argparse.Namespace) -> None:
         print(f"- [{h.id}] {h.text} ({meta})")
 
 
+def generate_report(conn: sqlite3.Connection, args: argparse.Namespace) -> None:
+    target_date = None
+    if args.date:
+        from datetime import datetime
+        target_date = datetime.strptime(args.date, "%Y-%m-%d").date()
+
+    service = ReportService(args.db)
+    filepath = service.generate(target_date=target_date, force=args.force)
+    print(f"Report generated: {filepath}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="SnipNote: a lightweight Readwise alternative.")
     parser.add_argument("--db", default=str(DEFAULT_DB), help="SQLite database path.")
@@ -193,6 +205,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_daily.add_argument("--due-limit", type=int, default=10, help="Due items in digest.")
     p_daily.add_argument("--random-limit", type=int, default=5, help="Random resurfaced items.")
     p_daily.set_defaults(func=daily)
+
+    # Report commands
+    p_report = sub.add_parser("report", help="Generate daily report.")
+    p_report.add_argument("--date", default="", help="Report date (YYYY-MM-DD), defaults to yesterday.")
+    p_report.add_argument("--force", action="store_true", help="Force regenerate if exists.")
+    p_report.set_defaults(func=generate_report)
 
     return parser
 

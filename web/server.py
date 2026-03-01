@@ -16,6 +16,7 @@ from urllib.request import Request, urlopen
 
 from parser import parse_link_to_markdown
 from ai import summarize as ai_summarize, suggest_tags as ai_suggest_tags
+from services.report_service import ReportService
 from storage import connect
 from scheduler import SM2Scheduler
 
@@ -997,6 +998,7 @@ def page_layout(title: str, body: str) -> str:
       <a href="/highlights">全部摘录</a>
       <a href="/favorites">Favorites</a>
       <a href="/tags">标签管理</a>
+      <a href="/daily">日报</a>
     </div>
     {body}
   </div>
@@ -1601,6 +1603,8 @@ def make_handler(app: App):
                 return self.handle_highlight_detail()
             if path == "/daily":
                 return self.handle_daily()
+            if path == "/report":
+                return self.handle_report_view()
             self.respond(HTTPStatus.NOT_FOUND, page_layout("404", "<h1>Not found</h1>"))
 
         def do_POST(self):
@@ -1634,6 +1638,8 @@ def make_handler(app: App):
                 return self.handle_tag_rename()
             if path == "/tags/delete":
                 return self.handle_tag_delete()
+            if path == "/report/generate":
+                return self.handle_report_generate()
             self.respond(HTTPStatus.NOT_FOUND, page_layout("404", "<h1>Not found</h1>"))
 
         def read_form(self) -> dict:
@@ -2881,35 +2887,87 @@ def make_handler(app: App):
             self.redirect("/review")
 
         def handle_daily(self):
+            """显示日报列表页面"""
+            # 获取已有日报
             with app.conn() as conn:
-                due = fetch_due(conn, 10)
-                random_rows = conn.execute(
-                    "SELECT id, text, source, author, tags, favorite, is_read, next_review, created_at FROM highlights ORDER BY RANDOM() LIMIT 5"
+                reports = conn.execute(
+                    "SELECT report_date, created_at FROM daily_reports ORDER BY report_date DESC LIMIT 30"
                 ).fetchall()
-            due_blocks = []
-            for r in due:
-                title_label = card_title_label(r)
-                body_md = strip_leading_duplicate_title(r["text"], r["source"] if "source" in r.keys() else "")
-                due_blocks.append(
-                    f"<div class='card'><h2>{detail_title_link(r['id'], title_label)}</h2><div class='md'>{render_markdown(body_md)}</div><p class='meta'>{row_meta(r)}</p><div class='row-actions'><a href='/highlight?id={r['id']}'>查看并批注</a>{read_button(r['id'], bool(r['is_read']), '/daily')}{favorite_button(r['id'], bool(r['favorite']), '/daily')}{delete_button(r['id'], '/daily')}</div></div>"
+
+            # 生成日报列表 HTML
+            report_blocks = []
+            for r in reports:
+                date_str = r["report_date"]
+                created_at = r["created_at"]
+                report_blocks.append(
+                    f"<div class='card'>"
+                    f"<h2>{html.escape(date_str)}</h2>"
+                    f"<p class='meta'>生成于 {html.escape(created_at)}</p>"
+                    f"<div class='row-actions'>"
+                    f"<a href='/report?date={date_str}'>查看</a>"
+                    f"</div></div>"
                 )
-            due_html = "".join(due_blocks) or "<div class='card'><p>今天没有到期摘录。</p></div>"
-            random_blocks = []
-            for r in random_rows:
-                title_label = card_title_label(r)
-                body_md = strip_leading_duplicate_title(r["text"], r["source"] if "source" in r.keys() else "")
-                random_blocks.append(
-                    f"<div class='card'><h2>{detail_title_link(r['id'], title_label)}</h2><div class='md'>{render_markdown(body_md)}</div><p class='meta'>{row_meta(r)}</p><div class='row-actions'><a href='/highlight?id={r['id']}'>查看并批注</a>{read_button(r['id'], bool(r['is_read']), '/daily')}{favorite_button(r['id'], bool(r['favorite']), '/daily')}{delete_button(r['id'], '/daily')}</div></div>"
-                )
-            random_html = "".join(random_blocks) or "<div class='card'><p>暂无随机摘录。</p></div>"
-            body = (
-                f"<h1>今日回顾（{today_iso()}）</h1>"
-                "<h2>到期摘录</h2>"
-                f"{due_html}"
-                "<h2>随机重现</h2>"
-                f"{random_html}"
+
+            reports_html = "".join(report_blocks) or "<div class='card'><p>暂无日报。</p></div>"
+
+            # 生成按钮
+            generate_form = (
+                "<form method='post' action='/report/generate' style='margin-bottom:20px'>"
+                "<button type='submit'>生成昨日日报</button></form>"
             )
-            self.respond(HTTPStatus.OK, page_layout("今日回顾", body))
+
+            body = (
+                "<h1>日报</h1>"
+                f"{generate_form}"
+                "<h2>历史日报</h2>"
+                f"{reports_html}"
+            )
+            self.respond(HTTPStatus.OK, page_layout("日报", body))
+
+        def handle_report_view(self):
+            """查看单日报表"""
+            parsed = urlparse(self.path)
+            query = parse_qs(parsed.query)
+            date_str = query.get("date", [""])[0].strip()
+
+            if not date_str:
+                self.respond(HTTPStatus.BAD_REQUEST, page_layout("错误", "<h1>缺少日期参数</h1>"))
+                return
+
+            with app.conn() as conn:
+                row = conn.execute(
+                    "SELECT content FROM daily_reports WHERE report_date = ?",
+                    (date_str,),
+                ).fetchone()
+
+            if not row:
+                self.respond(HTTPStatus.NOT_FOUND, page_layout("错误", "<h1>日报不存在</h1>"))
+                return
+
+            content = row["content"]
+            # 简单渲染 markdown 为 HTML
+            html_content = content
+            html_content = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html_content, flags=re.MULTILINE)
+            html_content = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html_content, flags=re.MULTILINE)
+            html_content = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html_content, flags=re.MULTILINE)
+            html_content = re.sub(r'^- (.+)$', r'<li>\1</li>', html_content, flags=re.MULTILINE)
+            html_content = re.sub(r'\n\n', r'<br><br>', html_content)
+
+            body = (
+                f"<h1>日报 {html.escape(date_str)}</h1>"
+                f"<div class='md'>{html_content}</div>"
+                f"<p><a href='/daily'>返回日报列表</a></p>"
+            )
+            self.respond(HTTPStatus.OK, page_layout(f"日报 {date_str}", body))
+
+        def handle_report_generate(self):
+            """生成日报"""
+            service = ReportService(app.db_path)
+            try:
+                filepath = service.generate()
+                self.redirect("/daily")
+            except Exception as e:
+                self.respond(HTTPStatus.INTERNAL_SERVER_ERROR, page_layout("错误", f"<h1>生成失败: {html.escape(str(e))}</h1>"))
 
         def log_message(self, fmt: str, *args):
             return

@@ -47,5 +47,15 @@ def connect(db_path: Path) -> sqlite3.Connection:
         conn.execute("ALTER TABLE highlights ADD COLUMN is_read INTEGER NOT NULL DEFAULT 0")
     if "summary" not in cols:
         conn.execute("ALTER TABLE highlights ADD COLUMN summary TEXT DEFAULT ''")
+
+    # Create daily_reports table
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS daily_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_date TEXT NOT NULL UNIQUE,
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
     conn.commit()
     return conn
