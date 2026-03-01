@@ -2018,16 +2018,17 @@ def make_handler(app: App):
                 return
             tag_rows = []
             for tag, count in tags:
+                tag_escaped = html.escape(tag)
                 tag_rows.append(
-                    f"<tr><td>{html.escape(tag)}</td><td>{count}</td>"
+                    f"<tr><td>{tag_escaped}</td><td>{count}</td>"
                     f"<td>"
                     f"<form method='post' action='/tags/rename' style='display:inline'>"
-                    f"<input type='hidden' name='old_tag' value='{html.escape(tag)}' />"
+                    f"<input type='hidden' name='old_tag' value='{tag_escaped}' />"
                     f"<input type='text' name='new_tag' placeholder='新名称' required style='width:100px' />"
                     f"<button type='submit'>改名</button></form> "
-                    f"<form method='post' action='/tags/delete' style='display:inline'>"
-                    f"<input type='hidden' name='tag' value='{html.escape(tag)}' />"
-                    f"<button type='submit' class='danger' onclick='return confirm(\"确定要删除标签「{html.escape(tag)}」吗？\\n所有使用该标签的卡片都会移除该标签。\")'>删除</button>"
+                    f"<form method='post' action='/tags/delete' style='display:inline' onsubmit=\"return confirm('确定要删除标签「" + tag_escaped + "」吗？\\\\n所有使用该标签的卡片都会移除该标签。')\">"
+                    f"<input type='hidden' name='tag' value='{tag_escaped}' />"
+                    f"<button type='submit' class='danger'>删除</button>"
                     f"</form>"
                     f"</td></tr>"
                 )
