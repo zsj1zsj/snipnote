@@ -1691,7 +1691,7 @@ def make_handler(app: App):
                 # Show summary if exists, otherwise show preview
                 summary = row["summary"] or ""
                 if summary:
-                    preview_html = f"<p><strong>AI 总结：</strong>{html.escape(summary[:200])}</p>"
+                    preview_html = f"<p>{html.escape(summary[:200])}</p>"
                 else:
                     body_md = strip_leading_duplicate_title(row["text"], row["source"] if "source" in row.keys() else "")
                     preview = markdown_preview_text(body_md, 100)
@@ -1943,7 +1943,7 @@ def make_handler(app: App):
                 # Show summary if exists, otherwise show preview
                 summary = row["summary"] or ""
                 if summary:
-                    preview_html = f"<p><strong>AI 总结：</strong>{html.escape(summary[:200])}</p>"
+                    preview_html = f"<p>{html.escape(summary[:200])}</p>"
                 else:
                     body_md = strip_leading_duplicate_title(row["text"], row["source"] if "source" in row.keys() else "")
                     preview = markdown_preview_text(body_md, 100)
@@ -2598,7 +2598,7 @@ def make_handler(app: App):
                 f"{delete_button(row['id'], '/highlights')}"
                 "</div>"
                 f"{location_html}"
-                + (f"<div class='md' style='background:#f0f9ff;padding:10px;border-radius:4px;margin-bottom:10px'><strong>AI 总结：</strong>{html.escape(row['summary'] or '')}</div>" if row["summary"] else "")
+                + (f"<div class='md' style='background:#f0f9ff;padding:10px;border-radius:4px;margin-bottom:10px'>{html.escape(row['summary'] or '')}</div>" if row["summary"] else "")
                 + f"<div class='md' id='article-content'>{rendered}</div>"
                 "</div>"
                 f"{interaction_html}"
