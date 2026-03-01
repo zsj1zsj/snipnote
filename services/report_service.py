@@ -107,10 +107,122 @@ class ReportService:
         else:
             return "🔴 危险", score
 
-    def _generate_report_content(self, stats: dict, target_date: date) -> str:
-        """Generate markdown report content."""
+    def _generate_ai_insights(self, stats: dict) -> dict:
+        """Generate structured AI insights for the daily report."""
         from ai import summarize as ai_summarize
 
+        # Prepare detailed context for AI
+        context_parts = []
+
+        # Reading activity
+        if stats["new_unread"]:
+            context_parts.append(f"昨日新增{len(stats['new_unread'])}条未读内容")
+        if stats["read_completed"]:
+            context_parts.append(f"完成{len(stats['read_completed'])}条阅读")
+        if stats["reviewed"]:
+            context_parts.append(f"复习{len(stats['reviewed'])}次")
+        context_parts.append(f"当前阅读负债{stats['backlog']}条")
+
+        # Top tags and sources
+        if stats["top_tags"]:
+            context_parts.append(f"主要阅读主题：{', '.join(list(stats['top_tags'].keys())[:3])}")
+
+        # Sources
+        all_sources = set()
+        for item in stats.get("new_unread", []) + stats.get("read_completed", []):
+            if item.get("source"):
+                all_sources.add(item["source"])
+        if all_sources:
+            context_parts.append(f"内容来源：{', '.join(list(all_sources)[:5])}")
+
+        context = "，".join(context_parts) + "。"
+
+        # Detailed content for AI to analyze
+        content_details = []
+        for item in (stats.get("new_unread", []) + stats.get("read_completed", []))[:10]:
+            text = item.get("text", "")[:200]
+            source = item.get("source", "")
+            tags = item.get("tags", "")
+            if text:
+                content_details.append(f"来源：{source}，标签：{tags}，内容：{text}")
+
+        detailed_content = "\n".join(content_details) if content_details else "无详细内容"
+
+        # Build the prompt for structured insights
+        prompt = f"""请分析以下昨日阅读数据，生成结构化的阅读日报分析。
+
+昨日阅读概况：{context}
+
+详细内容：
+{detailed_content}
+
+请按以下格式输出分析结果（每项单独一行，不要使用编号或列表符号）：
+
+昨日阅读主题概述：[不超过120字的主题概述]
+
+核心洞察：[第1条核心洞察]
+核心洞察：[第2条核心洞察]
+核心洞察：[第3条核心洞察]
+
+学习趋势分析：[一行学习趋势分析]
+
+改进建议：[第1条改进建议]
+改进建议：[第2条改进建议]
+
+一句总结金句：[一句简短的总结金句]"""
+
+        # Call AI
+        result = ai_summarize(prompt)
+
+        # Parse the structured response
+        lines = result.split("\n") if result else []
+        insights = {
+            "overview": "",
+            "insights": [],
+            "trend": "",
+            "suggestions": [],
+            "quote": ""
+        }
+
+        current_section = None
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if "昨日阅读主题概述" in line:
+                current_section = "overview"
+                insights["overview"] = line.split("：", 1)[-1] if "：" in line else ""
+            elif "核心洞察" in line:
+                current_section = "insights"
+                insight = line.split("：", 1)[-1] if "：" in line else line
+                if insight and len(insights["insights"]) < 3:
+                    insights["insights"].append(insight)
+            elif "学习趋势分析" in line:
+                current_section = "trend"
+                insights["trend"] = line.split("：", 1)[-1] if "：" in line else ""
+            elif "改进建议" in line:
+                current_section = "suggestions"
+                suggestion = line.split("：", 1)[-1] if "：" in line else line
+                if suggestion and len(insights["suggestions"]) < 2:
+                    insights["suggestions"].append(suggestion)
+            elif "一句总结金句" in line:
+                current_section = "quote"
+                insights["quote"] = line.split("：", 1)[-1] if "：" in line else ""
+            elif current_section == "overview" and insights["overview"]:
+                insights["overview"] += " " + line
+            elif current_section == "trend" and insights["trend"]:
+                insights["trend"] += " " + line
+            elif current_section == "quote" and insights["quote"]:
+                insights["quote"] += " " + line
+
+        # Truncate overview to 120 chars
+        if len(insights["overview"]) > 120:
+            insights["overview"] = insights["overview"][:117] + "..."
+
+        return insights
+
+    def _generate_report_content(self, stats: dict, target_date: date) -> str:
+        """Generate markdown report content."""
         date_str = iso_date(target_date)
         debt_status, debt_score = self._calculate_debt_score(stats["backlog"], stats["due_review"])
 
@@ -161,41 +273,43 @@ class ReportService:
                 lines.append(f"- {source}")
             lines.append("")
 
-        # AI 分析
+        # AI 分析 - 使用结构化输出
         lines.append("## 🤖 AI 分析")
 
-        # 准备摘要给 AI
-        summary_parts = []
-        if stats["new_unread"]:
-            summary_parts.append(f"昨日新增{len(stats['new_unread'])}条未读")
-        if stats["read_completed"]:
-            summary_parts.append(f"完成{len(stats['read_completed'])}条阅读")
-        if stats["reviewed"]:
-            summary_parts.append(f"复习{len(stats['reviewed'])}次")
-        summary_parts.append(f"当前负债{stats['backlog']}条")
+        # 调用 AI 生成结构化分析
+        try:
+            insights = self._generate_ai_insights(stats)
 
-        ai_input = "，".join(summary_parts)
-        if stats["top_tags"]:
-            ai_input += f"。主要阅读主题包括：{', '.join(stats['top_tags'].keys())}"
+            # 昨日阅读主题概述
+            if insights["overview"]:
+                lines.append(f"**昨日阅读主题概述**：{insights['overview']}")
+                lines.append("")
 
-        # 调用 AI 生成分析
-        ai_report = ai_summarize(ai_input)
-        lines.append(ai_report if ai_report else "（AI 分析生成中...）")
-        lines.append("")
+            # 核心洞察
+            if insights["insights"]:
+                lines.append("**核心洞察**：")
+                for i, insight in enumerate(insights["insights"], 1):
+                    lines.append(f"{i}. {insight}")
+                lines.append("")
 
-        # 次日建议
-        lines.append("## 💡 次日建议")
-        suggestions = []
-        if stats["due_review"] > 10:
-            suggestions.append("今日有较多复习任务，建议优先处理")
-        if stats["backlog"] > 50:
-            suggestions.append("阅读负债较高，建议减少新内容摄入")
-        if stats["new_unread"]:
-            suggestions.append(f"新摄入{len(stats['new_unread'])}条内容，注意消化")
-        if not suggestions:
-            suggestions.append("继续保持阅读节奏")
-        for s in suggestions:
-            lines.append(f"- {s}")
+            # 学习趋势分析
+            if insights["trend"]:
+                lines.append(f"**学习趋势分析**：{insights['trend']}")
+                lines.append("")
+
+            # 改进建议
+            if insights["suggestions"]:
+                lines.append("**改进建议**：")
+                for i, suggestion in enumerate(insights["suggestions"], 1):
+                    lines.append(f"{i}. {suggestion}")
+                lines.append("")
+
+            # 一句总结金句
+            if insights["quote"]:
+                lines.append(f"**一句总结金句**：{insights['quote']}")
+
+        except Exception as e:
+            lines.append(f"（AI 分析生成失败：{e}）")
 
         lines.append("")
         lines.append(f"---\n*由 SnipNote 自动生成*")
