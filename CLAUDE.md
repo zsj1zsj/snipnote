@@ -126,3 +126,7 @@ python3 -m unittest discover -s tests -v
 ```
 
 Make sure all tests pass before committing code changes.
+
+**Update README before committing:**
+
+If the code changes affect user-facing features, update the README.md to reflect those changes before committing.
