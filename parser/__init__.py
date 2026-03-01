@@ -1,9 +1,5 @@
-"""Backward compatibility wrapper for parser engine.
-
-This module provides backward compatibility for code that imports from parser_engine.
-"""
-# Re-export from new parser module
-from parser.engine import (
+# Parser module
+from .engine import (
     ParseOutput,
     ArticleExtractor,
     parse_link_to_markdown,
