@@ -1,4 +1,4 @@
-# Readlite
+# SnipNote
 
 一个轻量的 Readwise 平替（本地优先，CLI + Web UI）。
 

@@ -1,6 +1,6 @@
 # Plugins Module
 #
-# This module provides extension capabilities for Readlite.
+# This module provides extension capabilities for SnipNote.
 # Currently a placeholder for future extensions.
 #
 # Potential features:

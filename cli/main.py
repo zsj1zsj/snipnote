@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Readlite CLI - Command line interface for managing highlights."""
+"""SnipNote CLI - Command line interface for managing highlights."""
 import argparse
 import csv
 import datetime as dt
@@ -161,7 +161,7 @@ def daily(conn: sqlite3.Connection, args: argparse.Namespace) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Readlite: a lightweight Readwise alternative.")
+    parser = argparse.ArgumentParser(description="SnipNote: a lightweight Readwise alternative.")
     parser.add_argument("--db", default=str(DEFAULT_DB), help="SQLite database path.")
     sub = parser.add_subparsers(dest="command", required=True)
 

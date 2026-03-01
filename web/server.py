@@ -1646,7 +1646,7 @@ def make_handler(app: App):
                 "</form>"
             )
             body = (
-                "<h1>Readlite Web</h1>"
+                "<h1>SnipNote Web</h1>"
                 f"<div class='grid'>"
                 f"<div class='card'><h2>总摘录</h2><p>{counts['total']}</p></div>"
                 f"<div class='card'><h2>今日到期</h2><p>{counts['due']}</p></div>"
@@ -1655,7 +1655,7 @@ def make_handler(app: App):
                 f"{sort_form}"
                 f"{due_html}"
             )
-            self.respond(HTTPStatus.OK, page_layout("Readlite Web", body))
+            self.respond(HTTPStatus.OK, page_layout("SnipNote Web", body))
 
         def handle_add_form(self):
             body = """
@@ -2684,7 +2684,7 @@ def make_handler(app: App):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Readlite Web UI")
+    parser = argparse.ArgumentParser(description="SnipNote Web UI")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--db", default=str(DEFAULT_DB))
@@ -2693,7 +2693,7 @@ def main():
     app = App(args.db)
     handler = make_handler(app)
     server = ThreadingHTTPServer((args.host, args.port), handler)
-    print(f"Readlite Web running at http://{args.host}:{args.port}")
+    print(f"SnipNote Web running at http://{args.host}:{args.port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

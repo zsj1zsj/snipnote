@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Readlite** - A lightweight Readwise alternative (local-first, CLI + Web UI) for managing highlights and spaced repetition reviews.
+**SnipNote** - A lightweight Readwise alternative (local-first, CLI + Web UI) for managing highlights and spaced repetition reviews.
 
 ## Commands
 
