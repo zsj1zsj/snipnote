@@ -2091,7 +2091,7 @@ def make_handler(app: App):
                 for row in rows:
                     tags_str = row["tags"] or ""
                     tags = re.split(r"[,，;；]+", tags_str)
-                    new_tags = [t.strip() for t in tags if t.strip() and t.lower() != tag_lower]
+                    new_tags = [t.strip() for t in tags if t.strip() and t.strip().lower() != tag_lower]
                     if new_tags:
                         conn.execute("UPDATE highlights SET tags = ? WHERE id = ?", (", ".join(new_tags), row["id"]))
                     else:
