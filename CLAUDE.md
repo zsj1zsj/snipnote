@@ -130,3 +130,27 @@ Make sure all tests pass before committing code changes.
 **Update README before committing:**
 
 If the code changes affect user-facing features, update the README.md to reflect those changes before committing.
+
+## Branching Strategy
+
+For new features, create a feature branch:
+
+```bash
+# Create and switch to feature branch
+git checkout -b feature/feature-name
+
+# Commit changes freely on feature branch (no approval needed)
+git add ...
+git commit -m "feat: ..."
+
+# Push feature branch
+git push -u origin feature/feature-name
+```
+
+Once development is complete, the user will review and approve. After approval, merge to main:
+
+```bash
+git checkout main
+git merge feature/feature-name
+git push
+```
