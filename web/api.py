@@ -67,6 +67,15 @@ class AnnotationCreate(BaseModel):
     note: str = ""
 
 
+class SummarizeRequest(BaseModel):
+    text: str
+
+
+class SuggestTagsRequest(BaseModel):
+    text: str
+    existing_tags: str = ""
+
+
 class AnnotationUpdate(BaseModel):
     note: str
 
@@ -613,20 +622,20 @@ def get_stats():
 
 # AI endpoints
 @app.post("/api/ai/summarize")
-def summarize_text(text: str):
+def summarize_text(request: SummarizeRequest):
     """Summarize text using AI."""
     try:
-        summary = ai_summarize(text)
+        summary = ai_summarize(request.text)
         return {"summary": summary}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI summarization failed: {str(e)}")
 
 
 @app.post("/api/ai/suggest-tags")
-def suggest_tags_request(text: str, existing_tags: str = ""):
+def suggest_tags_request(request: SuggestTagsRequest):
     """Suggest tags using AI."""
     try:
-        tags = ai_suggest_tags(text, existing_tags or "")
+        tags = ai_suggest_tags(request.text, request.existing_tags or "")
         return {"tags": tags}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI tag suggestion failed: {str(e)}")

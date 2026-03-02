@@ -53,6 +53,9 @@ export default function HighlightCard({ highlight, onUpdate, onDelete }) {
     ? highlight.tags.split(',').map((t) => t.trim()).filter(Boolean)
     : [];
 
+  // Display summary if available, otherwise first 300 chars of text
+  const displayContent = highlight.summary || (highlight.text ? highlight.text.slice(0, 300) + (highlight.text.length > 300 ? '...' : '') : '');
+
   return (
     <Link
       to={`/highlight/${highlight.id}`}
@@ -83,9 +86,9 @@ export default function HighlightCard({ highlight, onUpdate, onDelete }) {
             )}
           </div>
 
-          {/* Text content */}
+          {/* Text content - summary or first 300 chars */}
           <div className="text-content mb-4">
-            {highlight.text}
+            {displayContent}
           </div>
 
           {/* Tags */}

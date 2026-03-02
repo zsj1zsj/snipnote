@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { ArrowLeft, Star, Check, Trash2, Plus, Lightbulb, ExternalLink, Sparkles, Highlighter } from 'lucide-react';
 import api from '../api';
@@ -92,7 +92,6 @@ function extractText(children) {
 
 export default function HighlightDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const contentRef = useRef(null);
   const noteInputRef = useRef(null);
   const [data, setData] = useState(null);
@@ -103,9 +102,11 @@ export default function HighlightDetail() {
   const [summary, setSummary] = useState('');
   const [menuPos, setMenuPos] = useState(null);
   const [selectedText, setSelectedText] = useState('');
+  const [selectedAnnotationIndex, setSelectedAnnotationIndex] = useState(-1);
   const scrollPositionRef = useRef(0);
+  const annotationRefs = useRef([]);
 
-  const loadHighlight = useCallback(async (saveScroll = false) => {
+  const loadHighlight = async (saveScroll = false) => {
     if (saveScroll) {
       scrollPositionRef.current = window.scrollY;
     }
@@ -125,13 +126,13 @@ export default function HighlightDetail() {
         }, 0);
       }
     }
-  }, [id]);
+  };
 
   useEffect(() => {
     loadHighlight();
   }, [id]);
 
-  const handleToggleFavorite = useCallback((e) => {
+  const handleToggleFavorite = (e) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -139,9 +140,9 @@ export default function HighlightDetail() {
     api.toggleFavorite(id).then(updated => {
       setData(prev => ({ ...prev, highlight: updated }));
     });
-  }, [id]);
+  };
 
-  const handleToggleRead = useCallback((e) => {
+  const handleToggleRead = (e) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -149,20 +150,20 @@ export default function HighlightDetail() {
     api.toggleRead(id).then(updated => {
       setData(prev => ({ ...prev, highlight: updated }));
     });
-  }, [id]);
+  };
 
-  const handleDelete = useCallback((e) => {
+  const handleDelete = (e) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
     if (!confirm('确定要删除这条摘录吗？')) return;
     api.deleteHighlight(id).then(() => {
-      navigate('/highlights');
+      window.location.href = '/highlights';
     });
-  }, [id, navigate]);
+  };
 
-  const handleAddHighlightOnly = useCallback((e) => {
+  const handleAddHighlightOnly = (e) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -184,9 +185,9 @@ export default function HighlightDetail() {
       setSummary(result.highlight.summary || '');
       setTimeout(() => window.scrollTo(0, currentScroll), 0);
     });
-  }, [id, selectedText]);
+  };
 
-  const handleAddNote = useCallback((e) => {
+  const handleAddNote = (e) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -212,9 +213,9 @@ export default function HighlightDetail() {
       setSummary(result.highlight.summary || '');
       setTimeout(() => window.scrollTo(0, currentScroll), 0);
     });
-  }, [id, selectedText, newNote]);
+  };
 
-  const handleDeleteAnnotation = useCallback((annotationId, e) => {
+  const handleDeleteAnnotation = (annotationId, e) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -227,9 +228,9 @@ export default function HighlightDetail() {
       setSummary(result.highlight.summary || '');
       setTimeout(() => window.scrollTo(0, currentScroll), 0);
     });
-  }, [id]);
+  };
 
-  const handleSuggestTags = useCallback((e) => {
+  const handleSuggestTags = (e) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -237,9 +238,9 @@ export default function HighlightDetail() {
     api.suggestTags(data.highlight.text, data.highlight.tags || '').then(result => {
       setSuggestedTags(result.tags);
     }).catch(console.error);
-  }, [data]);
+  };
 
-  const handleSummarize = useCallback((e) => {
+  const handleSummarize = (e) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -254,9 +255,9 @@ export default function HighlightDetail() {
       setData(prev => ({ ...prev, highlight: { ...prev.highlight, summary: result.highlight.summary } }));
       setTimeout(() => window.scrollTo(0, currentScroll), 0);
     }).catch(console.error);
-  }, [data, id]);
+  };
 
-  const handleAddTag = useCallback((tagName, e) => {
+  const handleAddTag = (tagName, e) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -269,9 +270,9 @@ export default function HighlightDetail() {
       setData(result);
       setSuggestedTags(prev => prev.filter(t => t !== tagName));
     });
-  }, [data, id]);
+  };
 
-  const handleContextMenu = useCallback((e) => {
+  const handleContextMenu = (e) => {
     const selection = window.getSelection();
     const text = selection ? selection.toString().trim() : '';
 
@@ -297,7 +298,7 @@ export default function HighlightDetail() {
       setMenuPos(null);
       setSelectedText('');
     }
-  }, []);
+  };
 
   useEffect(() => {
     const handleClick = () => setMenuPos(null);
@@ -317,6 +318,100 @@ export default function HighlightDetail() {
       document.removeEventListener('contextmenu', handleDocumentContextMenu);
     };
   }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ignore if typing in input
+      const tag = e.target.tagName.toLowerCase();
+      const isInput = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
+
+      // Z - Back to highlights
+      if (e.key.toLowerCase() === 'z' && !isInput) {
+        e.preventDefault();
+        window.location.href = '/highlights';
+        return;
+      }
+
+      // M or Enter - Focus note input
+      if ((e.key.toLowerCase() === 'm' || e.key === 'Enter') && !isInput) {
+        e.preventDefault();
+        const input = document.getElementById('note-input');
+        if (input) {
+          input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          input.focus();
+        }
+        return;
+      }
+
+      // H - Quick highlight selected text
+      if (e.key.toLowerCase() === 'h' && !isInput) {
+        const selection = window.getSelection();
+        const text = selection ? selection.toString().trim() : '';
+        if (text) {
+          // Save scroll position BEFORE preventDefault
+          const currentScroll = window.scrollY;
+          e.preventDefault();
+          api.createAnnotation({
+            highlight_id: parseInt(id),
+            selected_text: text,
+            note: '',
+          }).then(() => {
+            // Restore scroll position after load
+            setTimeout(() => window.scrollTo(0, currentScroll), 10);
+            loadHighlight();
+          });
+        }
+        return;
+      }
+
+      // J - Next annotation
+      if (e.key.toLowerCase() === 'j' && !isInput) {
+        e.preventDefault();
+        if (data?.annotations?.length > 0) {
+          const nextIndex = (selectedAnnotationIndex + 1) % data.annotations.length;
+          setSelectedAnnotationIndex(nextIndex);
+          annotationRefs.current[nextIndex]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+      }
+
+      // K - Previous annotation
+      if (e.key.toLowerCase() === 'k' && !isInput) {
+        e.preventDefault();
+        if (data?.annotations?.length > 0) {
+          const prevIndex = selectedAnnotationIndex <= 0 ? data.annotations.length - 1 : selectedAnnotationIndex - 1;
+          setSelectedAnnotationIndex(prevIndex);
+          annotationRefs.current[prevIndex]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+      }
+
+      // Delete/Backspace - Delete selected annotation
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !isInput) {
+        if (selectedAnnotationIndex >= 0 && data?.annotations?.[selectedAnnotationIndex]) {
+          e.preventDefault();
+          const annotation = data.annotations[selectedAnnotationIndex];
+          if (confirm('确定要删除这条笔记吗？')) {
+            handleDeleteAnnotation(annotation.id, { preventDefault: () => {}, stopPropagation: () => {} });
+          }
+        }
+        return;
+      }
+
+      // Ctrl/Cmd + S - Save note
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (newNote.trim()) {
+          handleAddNote({ preventDefault: () => {}, stopPropagation: () => {} });
+        }
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [data, selectedAnnotationIndex, newNote, selectedText]);
 
   if (loading) {
     return (
@@ -351,7 +446,7 @@ export default function HighlightDetail() {
         className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-700 mb-6 transition-colors"
         onClick={e => {
           e.preventDefault();
-          navigate('/highlights');
+          window.location.href = '/highlights';
         }}
       >
         <ArrowLeft size={18} />
@@ -402,6 +497,50 @@ export default function HighlightDetail() {
           )}
         </div>
 
+        {/* Summary section - show before text */}
+        {summary && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg border border-amber-100">
+            <div className="flex items-center gap-2 text-sm font-medium text-amber-700 mb-2">
+              <Lightbulb size={16} />
+              摘要
+            </div>
+            <p className="text-gray-700">{summary}</p>
+          </div>
+        )}
+
+        {/* AI buttons row - show before text if no summary */}
+        {!summary && (
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <button
+              onClick={handleSummarize}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs bg-amber-50 text-amber-600 rounded-full hover:bg-amber-100 transition-colors"
+            >
+              <Sparkles size={12} />
+              生成摘要
+            </button>
+            <button
+              onClick={handleSuggestTags}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 transition-colors"
+            >
+              <Sparkles size={12} />
+              AI 推荐标签
+            </button>
+          </div>
+        )}
+
+        {/* Show AI buttons after tags if summary exists */}
+        {summary && (
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <button
+              onClick={handleSuggestTags}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 transition-colors"
+            >
+              <Sparkles size={12} />
+              AI 推荐标签
+            </button>
+          </div>
+        )}
+
         <div
           ref={contentRef}
           className="prose-custom mb-6"
@@ -414,20 +553,16 @@ export default function HighlightDetail() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 pt-5 border-t border-gray-100">
-          {tags.map((tag) => (
-            <span key={tag} className="tag tag-gray">
-              #{tag}
-            </span>
-          ))}
-          <button
-            onClick={handleSuggestTags}
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <Sparkles size={12} />
-            AI 推荐标签
-          </button>
-        </div>
+        {/* Tags display */}
+        {tags.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-gray-100">
+            {tags.map((tag) => (
+              <span key={tag} className="tag tag-gray">
+                #{tag}
+              </span>
+            ))}
+          </div>
+        )}
 
         {suggestedTags.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
@@ -441,26 +576,6 @@ export default function HighlightDetail() {
               </button>
             ))}
           </div>
-        )}
-
-        {summary && (
-          <div className="mt-5 p-4 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg border border-amber-100">
-            <div className="flex items-center gap-2 text-sm font-medium text-amber-700 mb-2">
-              <Lightbulb size={16} />
-              摘要
-            </div>
-            <p className="text-gray-700">{summary}</p>
-          </div>
-        )}
-
-        {!summary && (
-          <button
-            onClick={handleSummarize}
-            className="mt-5 flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <Sparkles size={14} />
-            使用 AI 生成摘要
-          </button>
         )}
       </div>
 
@@ -495,8 +610,13 @@ export default function HighlightDetail() {
           <p className="text-center py-6 text-gray-400">暂无笔记，选中文字后右键添加高亮或笔记</p>
         ) : (
           <div className="space-y-4">
-            {annotations.map((annotation) => (
-              <div key={annotation.id} className="annotation">
+            {annotations.map((annotation, index) => (
+              <div
+                key={annotation.id}
+                ref={el => annotationRefs.current[index] = el}
+                className={`annotation cursor-pointer ${selectedAnnotationIndex === index ? 'ring-2 ring-blue-400 rounded-lg' : ''}`}
+                onClick={() => setSelectedAnnotationIndex(index)}
+              >
                 {annotation.selected_text && (
                   <div className="annotation-quote bg-yellow-50 border-l-4 border-yellow-400">
                     "{annotation.selected_text}"
@@ -540,7 +660,6 @@ export default function HighlightDetail() {
               e.preventDefault();
               e.stopPropagation();
               setMenuPos(null);
-              // Scroll to note input and focus
               setTimeout(() => {
                 const input = document.getElementById('note-input');
                 if (input) {
