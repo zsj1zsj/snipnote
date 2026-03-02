@@ -316,21 +316,25 @@ class ReportService:
 
         return "\n".join(lines)
 
-    def _save_to_db(self, target_date: date, content: str) -> None:
+    def _save_to_db(self, target_date: date, content: str, force: bool = False) -> None:
         """Save report to database."""
         conn = connect(Path(self.db_path))
         date_str = iso_date(target_date)
         now = dt.datetime.now().isoformat(timespec="seconds")
 
-        # 幂等：如果已存在则跳过
+        # 如果已存在且不强制覆盖，则跳过
         exists = conn.execute(
             "SELECT id FROM daily_reports WHERE report_date = ?",
             (date_str,)
         ).fetchone()
 
         if exists:
-            conn.close()
-            return False
+            if force:
+                # 强制覆盖：先删除旧记录
+                conn.execute("DELETE FROM daily_reports WHERE report_date = ?", (date_str,))
+            else:
+                conn.close()
+                return False
 
         conn.execute(
             "INSERT INTO daily_reports (report_date, content, created_at) VALUES (?, ?, ?)",
@@ -380,7 +384,7 @@ class ReportService:
         content = self._generate_report_content(stats, target_date)
 
         # 保存到数据库
-        self._save_to_db(target_date, content)
+        self._save_to_db(target_date, content, force=force)
 
         # 保存到文件
         self._save_to_file(target_date, content)
