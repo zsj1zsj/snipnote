@@ -646,8 +646,8 @@ def suggest_tags_request(request: SuggestTagsRequest):
 def parse_url(request: ParseLinkRequest):
     """Parse a URL and extract content as markdown."""
     try:
-        title, markdown = parse_link_to_markdown(request.url)
-        return {"title": title, "content": markdown}
+        result = parse_link_to_markdown(request.url)
+        return {"title": result.title, "content": result.markdown}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Parsing failed: {str(e)}")
 

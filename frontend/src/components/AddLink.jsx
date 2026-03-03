@@ -18,6 +18,8 @@ export default function AddLink() {
     try {
       const result = await api.parseUrl(url);
       setParsed(result);
+      // Auto-save after parsing
+      await handleSave(result);
     } catch (err) {
       setError(err.message);
       setParsed(null);
@@ -26,14 +28,15 @@ export default function AddLink() {
     }
   };
 
-  const handleSave = async () => {
-    if (!parsed) return;
+  const handleSave = async (parseResult = null) => {
+    const dataToSave = parseResult || parsed;
+    if (!dataToSave) return;
     setLoading(true);
     setError(null);
     try {
       const created = await api.createHighlight({
-        text: parsed.content,
-        source: parsed.title,
+        text: dataToSave.content,
+        source: dataToSave.title,
         location: url,
       });
       navigate(`/highlight/${created.id}`);
@@ -81,31 +84,20 @@ export default function AddLink() {
         </button>
       </div>
 
-      {/* Parsed content preview */}
+      {/* Parsed content preview - now auto-saving */}
       {parsed && (
         <div className="card p-6">
+          <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
+            <Loader size={16} className="animate-spin" />
+            正在保存...
+          </div>
           <h2 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
             <FileText size={18} className="text-gray-400" />
             {parsed.title}
           </h2>
-          <div className="prose-custom max-h-96 overflow-y-auto text-sm mb-6 p-4 bg-gray-50 rounded-lg">
+          <div className="prose-custom max-h-96 overflow-y-auto text-sm p-4 bg-gray-50 rounded-lg">
             {parsed.content.slice(0, 2000)}
             {parsed.content.length > 2000 && '...'}
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={handleSave}
-              disabled={loading}
-              className="flex-1 btn btn-primary py-3"
-            >
-              {loading ? '保存中...' : '保存为摘录'}
-            </button>
-            <Link
-              to="/add"
-              className="btn btn-secondary py-3"
-            >
-              手动输入
-            </Link>
           </div>
         </div>
       )}

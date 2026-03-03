@@ -8,8 +8,26 @@ import api from '../api';
 function HighlightedMarkdown({ content, annotations }) {
   const annotationsWithText = annotations?.filter(a => a.selected_text && a.selected_text.trim()) || [];
 
+  // Reusable ReactMarkdown with custom img
+  const renderMarkdown = (text) => (
+    <ReactMarkdown
+      components={{
+        img: ({ node, src, alt, ...props }) => (
+          <img
+            src={src}
+            alt={alt}
+            referrerPolicy="no-referrer"
+            {...props}
+          />
+        ),
+      }}
+    >
+      {text}
+    </ReactMarkdown>
+  );
+
   if (annotationsWithText.length === 0) {
-    return <ReactMarkdown>{content}</ReactMarkdown>;
+    return renderMarkdown(content);
   }
 
   const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -18,7 +36,7 @@ function HighlightedMarkdown({ content, annotations }) {
     .sort((a, b) => b.length - a.length);
 
   if (patterns.length === 0) {
-    return <ReactMarkdown>{content}</ReactMarkdown>;
+    return renderMarkdown(content);
   }
 
   const pattern = new RegExp(`(${patterns.map(escapeRegex).join('|')})`, 'gi');
@@ -26,12 +44,20 @@ function HighlightedMarkdown({ content, annotations }) {
   const parts = content.split(pattern);
 
   if (parts.length === 1) {
-    return <ReactMarkdown>{content}</ReactMarkdown>;
+    return renderMarkdown(content);
   }
 
   return (
     <ReactMarkdown
       components={{
+        img: ({ node, src, alt, ...props }) => (
+          <img
+            src={src}
+            alt={alt}
+            referrerPolicy="no-referrer"
+            {...props}
+          />
+        ),
         p: ({ node, children, ...props }) => {
           const textContent = extractText(children);
           if (!textContent) return <p {...props}>{children}</p>;

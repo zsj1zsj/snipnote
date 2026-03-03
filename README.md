@@ -28,6 +28,20 @@ cd frontend && npm install && cd ..
 
 ## 快速开始
 
+### 启动 Web UI
+
+```bash
+python3 webui.py
+```
+
+然后访问：`http://127.0.0.1:8787`
+
+### 更新前端后重新构建
+
+```bash
+cd frontend && npm run build && cd ..
+```
+
 ### CLI 命令
 
 ```bash
@@ -46,14 +60,6 @@ python3 readlite.py daily
 # 指定数据库
 python3 readlite.py --db /path/to/readlite.db list
 ```
-
-### 启动 Web UI
-
-```bash
-python3 webui.py
-```
-
-然后访问：`http://127.0.0.1:8787`
 
 ## Web UI 页面说明
 

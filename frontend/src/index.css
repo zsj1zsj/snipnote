@@ -450,11 +450,47 @@ body {
   text-decoration: underline;
 }
 
-.prose-custom img {
+/* Make images display in a row - override prose defaults */
+.prose-custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.prose-custom > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.prose-custom p, .prose-custom > div {
+  flex: 1 1 100%;
   max-width: 100%;
+}
+
+.prose-custom img {
+  max-height: 180px;
+  width: auto;
   height: auto;
+  object-fit: contain;
   border-radius: 0.5rem;
-  margin: 1rem 0;
+  margin: 0;
+  cursor: zoom-in;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.prose-custom img:hover {
+  transform: scale(1.8);
+  max-height: none;
+  object-fit: contain;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  z-index: 30;
+  position: relative;
+}
+
+/* Handle mixed content warnings */
+.prose-custom img[src^="http://"] {
+  background: #f3f4f6;
 }
 
 /* Report content */
