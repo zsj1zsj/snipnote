@@ -1,0 +1,12 @@
+[project]
+name = "snipnote"
+version = "0.1.0"
+description = "一个本地优先、可配置、AI 增强的知识处理系统"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "python-multipart",
+    "requests",
+]

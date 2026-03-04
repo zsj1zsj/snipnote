@@ -19,8 +19,10 @@
 ## 安装依赖
 
 ```bash
-# 安装 Python 依赖
-pip3 install -r requirements.txt
+# 安装 Python 依赖 (使用 uv)
+uv venv .venv
+source .venv/bin/activate
+uv pip install -r pyproject.toml
 
 # 安装前端依赖（仅首次或更新前端时需要）
 cd frontend && npm install && cd ..

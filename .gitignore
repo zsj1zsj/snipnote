@@ -1,4 +1,13 @@
 data/
 __pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+.eggs
+*.egg-info/
+dist/
+build/
 cookies.json
 config.json
