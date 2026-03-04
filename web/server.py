@@ -2778,7 +2778,9 @@ def make_handler(app: App):
                 text = row["text"] or ""
                 # Generate summary using AI
                 summary = ai_summarize(text)
-                conn.execute("UPDATE highlights SET summary = ? WHERE id = ?", (summary, highlight_id))
+                # 不保存错误信息到数据库
+                if summary and not summary.startswith('[API错误]') and not summary.startswith('[错误]'):
+                    conn.execute("UPDATE highlights SET summary = ? WHERE id = ?", (summary, highlight_id))
                 conn.commit()
             self.redirect(return_to)
 

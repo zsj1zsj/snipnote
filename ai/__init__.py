@@ -150,7 +150,7 @@ class LLMProviderImpl:
                 # Filter out thinking tags if present
                 return self._filter_thinking(content)
         except Exception as e:
-            return f"[API错误] {str(e)}"
+            return "[API错误] 请检查网络连接或 API 配置"
 
     def _filter_thinking(self, text: str) -> str:
         """Filter out thinking tags from the response."""

@@ -274,7 +274,10 @@ export default function HighlightDetail() {
     const currentScroll = window.scrollY;
     api.summarize(data.highlight.text).then(result => {
       setSummary(result.summary);
-      return api.updateHighlight(id, { summary: result.summary });
+      // 不保存错误信息到数据库
+      if (result.summary && !result.summary.startsWith('[API错误]') && !result.summary.startsWith('[错误]')) {
+        return api.updateHighlight(id, { summary: result.summary });
+      }
     }).then(() => {
       return api.highlight(id);
     }).then(result => {
