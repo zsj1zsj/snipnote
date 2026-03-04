@@ -25,6 +25,11 @@ def _config_dir():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def _conf_dir():
+    """Config directory for config files."""
+    return os.path.join(_config_dir(), "config")
+
+
 DEFAULT_DB = Path(_config_dir()) / "data" / "readlite.db"
 
 
@@ -58,7 +63,7 @@ def _merge_dict(base: dict, override: dict) -> dict:
 
 
 def load_shortcuts_config() -> dict[str, dict[str, list[str]]]:
-    path = os.path.join(_config_dir(), "shortcuts.json")
+    path = os.path.join(_conf_dir(), "shortcuts.json")
     if not os.path.exists(path):
         return DEFAULT_SHORTCUTS
     try:

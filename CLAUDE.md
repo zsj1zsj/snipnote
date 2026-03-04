@@ -95,7 +95,7 @@ The root-level files provide backward compatibility:
 - `parser_engine.py` - Re-exports from parser/engine.py
 
 ### Parsing Rules
-Site-specific rules are configured in `parser_rules.json`:
+Site-specific rules are configured in `config/parser_rules.json`:
 - `domains` - List of domains the rule applies to
 - `primary_html_patterns` - Regex patterns to find main content container
 - `drop_patterns` - Regex patterns for noise to filter
@@ -113,7 +113,7 @@ Economist.com has special handling - auto-fallback to archive.is snapshots when 
 - **No external dependencies** - Uses Python standard library only
 - Parser rules changes take effect on restart (no code changes needed)
 - Old highlights don't auto-recompute when rules change - delete and re-add to reparse
-- `cookies.json` follows format: `{ "domain.com": { "cookie_name": "value" } }`
+- `config/cookies.json` follows format: `{ "domain.com": { "cookie_name": "value" } }`
 - The Web UI embeds all HTML/CSS/JS inline (no separate frontend files)
 - New modules can be imported directly: `from storage import connect`, `from scheduler import SM2Scheduler`
 

@@ -34,7 +34,7 @@ def _merge_dict(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
 
 
 def _config_dir():
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config")
 
 
 def load_parser_rules() -> dict[str, Any]:

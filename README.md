@@ -79,15 +79,15 @@ python3 readlite.py --db /path/to/readlite.db list
 
 ## 解析规则（配置化）
 
-- 规则引擎支持配置文件：`parser_rules.json`
+- 规则引擎支持配置文件：`config/parser_rules.json`
 - 解析器模块位于：`parser/engine.py`
-- 各域名规则全部在 `parser_rules.json` 中维护（`parser/engine.py` 不再内置站点规则）
+- 各域名规则全部在 `config/parser_rules.json` 中维护（`parser/engine.py` 不再内置站点规则）
 - 当前内置配置：`solidot.org`、`ifanr.com`、`playno1.com`、`blogjava.net`、`news.yahoo.co.jp`、`medium.com`、`economist.com`、`cnblogs.com`、`liaoxuefeng.com`
 - `economist.com` 在疑似 paywall 时会自动尝试通过 `archive.is` 快照抓取正文
 
 ### 新增/调整站点规则
 
-在 `parser_rules.json` 的 `rules` 下新增规则块，常用字段：
+在 `config/parser_rules.json` 的 `rules` 下新增规则块，常用字段：
 
 - `domains`：域名列表
 - `primary_html_patterns`：正文容器正则
@@ -100,7 +100,7 @@ python3 readlite.py --db /path/to/readlite.db list
 
 ### 需要登录的站点
 
-在项目根目录创建 `cookies.json`：
+在 `config/` 目录创建 `cookies.json`：
 
 ```json
 {
@@ -132,7 +132,7 @@ text,source,author,location,tags
 
 ## LLM 配置
 
-AI 功能支持配置不同的 LLM 提供商，配置文件为 `config.json`：
+AI 功能支持配置不同的 LLM 提供商，配置文件为 `config/config.json`：
 
 ```json
 {
@@ -150,8 +150,8 @@ AI 功能支持配置不同的 LLM 提供商，配置文件为 `config.json`：
 
 复制模板配置：
 ```bash
-cp config.json.template config.json
-# 然后编辑 config.json 填入你的 API Key
+cp config/config.json.template config/config.json
+# 然后编辑 config/config.json 填入你的 API Key
 ```
 
 ## 设计原则

@@ -15,7 +15,7 @@ from typing import Protocol
 
 def _load_config() -> dict:
     """Load configuration from config.json."""
-    config_path = Path(__file__).parent.parent / "config.json"
+    config_path = Path(__file__).parent.parent / "config" / "config.json"
     if not config_path.exists():
         return {}
     try:

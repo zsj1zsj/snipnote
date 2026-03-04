@@ -9,5 +9,5 @@ venv/
 *.egg-info/
 dist/
 build/
-cookies.json
-config.json
+config/config.json
+config/cookies.json
