@@ -938,10 +938,47 @@ def _try_economist_archive_snapshot(url: str, timeout: int = 10) -> tuple[str, l
     return title, blocks
 
 
+# Economist 移动端抓取（伪造 Android 客户端）
+def _fetch_economist_mobile(url: str, timeout: int = 10) -> tuple[str, bytes] | None:
+    """使用 Android 客户端 User-Agent 抓取 Economist 文章"""
+    import requests as _requests
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.103 Mobile Safari/537.36 Liskov",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+    }
+
+    try:
+        resp = _requests.get(url, headers=headers, timeout=timeout)
+        if resp.status_code != 200:
+            return None
+        # 返回原始 URL 和响应内容
+        return url, resp.content
+    except Exception:
+        return None
+
+
 def parse_link_to_markdown(url: str, timeout: int = 10) -> ParseOutput:
-    fetched_url, raw = fetch_html_with_retry(url, timeout=timeout)
-    parsed = urlparse(fetched_url)
+    parsed = urlparse(url)
     host = parsed.netloc
+
+    # ── Economist 专用：优先尝试移动端抓取 ────────────────────────
+    use_mobile_fetch = host.endswith("economist.com")
+    mobile_fetched_url = None
+    mobile_raw = None
+    if use_mobile_fetch:
+        mobile_result = _fetch_economist_mobile(url, timeout=timeout)
+        if mobile_result is not None:
+            mobile_fetched_url, mobile_raw = mobile_result
+
+    # 使用移动端或普通方式获取内容
+    if mobile_raw is not None:
+        fetched_url = mobile_fetched_url
+        raw = mobile_raw
+    else:
+        fetched_url, raw = fetch_html_with_retry(url, timeout=timeout)
+
     rule = choose_rule(host)
     preferred_encoding = ""
     if isinstance(rule, ConfigSiteRule):
