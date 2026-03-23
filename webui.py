@@ -16,7 +16,7 @@ try:
 
     if __name__ == "__main__":
         print("Starting SnipNote Web UI (FastAPI)...")
-        uvicorn.run(app, host="127.0.0.1", port=8787, reload=False)
+        uvicorn.run(app, host="0.0.0.0", port=8787, reload=False)
 except ImportError:
     # Fall back to old server if FastAPI is not installed
     print("FastAPI not found, starting legacy web server...")
