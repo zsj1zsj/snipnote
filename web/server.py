@@ -1623,6 +1623,8 @@ def make_handler(app: App):
                 return self.handle_annotate_submit()
             if path == "/annotation/delete":
                 return self.handle_delete_annotation()
+            if path == "/annotation/update":
+                return self.handle_update_annotation()
             if path == "/highlight/delete":
                 return self.handle_delete_highlight()
             if path == "/highlight/add-tag":
@@ -2201,18 +2203,33 @@ def make_handler(app: App):
                     if ann["selected_text"]
                     else ""
                 )
-                note_html = (
-                    f"<div class='md'><p>{html.escape(ann['note'])}</p></div>"
-                    if ann["note"]
-                    else "<p class='meta'>（无评价文本）</p>"
-                )
+                ann_id = ann['id']
+                note_val = html.escape(ann['note'] or '', quote=True)
+                if ann["note"]:
+                    note_html = f"<div class='md'><p>{html.escape(ann['note'])}</p></div>"
+                    edit_label = "编辑评价"
+                else:
+                    note_html = "<p class='meta'>（无评价文本）</p>"
+                    edit_label = "添加评价"
                 ann_blocks.append(
                     "<div class='card'>"
                     f"<p class='meta'>批注时间：{html.escape(ann['created_at'])}</p>"
                     f"{quote_html}{note_html}"
+                    f"<div id='ann-edit-{ann_id}' style='display:none;margin-top:8px;'>"
+                    f"<form method='post' action='/annotation/update'>"
+                    f"<input type='hidden' name='id' value='{ann_id}' />"
+                    f"<input type='hidden' name='highlight_id' value='{row['id']}' />"
+                    f"<textarea name='note' rows='3' style='width:100%;box-sizing:border-box;'>{note_val}</textarea>"
+                    "<div style='margin-top:4px;'>"
+                    "<button type='submit'>保存</button>"
+                    f"<button type='button' onclick=\"document.getElementById('ann-edit-{ann_id}').style.display='none'\" style='margin-left:8px;'>取消</button>"
+                    "</div>"
+                    "</form>"
+                    "</div>"
                     "<div class='row-actions'>"
+                    f"<button type='button' onclick=\"var el=document.getElementById('ann-edit-{ann_id}');el.style.display=el.style.display==='none'?'block':'none';\">{edit_label}</button>"
                     "<form method='post' action='/annotation/delete' style='display:inline;'>"
-                    f"<input type='hidden' name='id' value='{ann['id']}' />"
+                    f"<input type='hidden' name='id' value='{ann_id}' />"
                     f"<input type='hidden' name='highlight_id' value='{row['id']}' />"
                     "<button type='submit' class='danger' onclick=\"return confirm('确认删除这条批注吗？');\">删除批注</button>"
                     "</form>"
@@ -2667,6 +2684,28 @@ def make_handler(app: App):
             if annotation_id > 0:
                 with app.conn() as conn:
                     conn.execute("DELETE FROM annotations WHERE id = ?", (annotation_id,))
+                    conn.commit()
+
+            if highlight_id > 0:
+                self.redirect(f"/highlight?id={highlight_id}")
+            else:
+                self.redirect("/highlights")
+
+        def handle_update_annotation(self):
+            form = self.read_form()
+            try:
+                annotation_id = int(form.get("id", "0"))
+            except ValueError:
+                annotation_id = 0
+            try:
+                highlight_id = int(form.get("highlight_id", "0"))
+            except ValueError:
+                highlight_id = 0
+            note = form.get("note", "").strip()
+
+            if annotation_id > 0:
+                with app.conn() as conn:
+                    conn.execute("UPDATE annotations SET note = ? WHERE id = ?", (note, annotation_id))
                     conn.commit()
 
             if highlight_id > 0:

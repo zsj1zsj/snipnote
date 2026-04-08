@@ -129,6 +129,8 @@ export default function HighlightDetail() {
   const [menuPos, setMenuPos] = useState(null);
   const [selectedText, setSelectedText] = useState('');
   const [selectedAnnotationIndex, setSelectedAnnotationIndex] = useState(-1);
+  const [editingAnnotationId, setEditingAnnotationId] = useState(null);
+  const [editingNote, setEditingNote] = useState('');
   const scrollPositionRef = useRef(0);
   const annotationRefs = useRef([]);
 
@@ -238,6 +240,28 @@ export default function HighlightDetail() {
       setData(result);
       setSummary(result.highlight.summary || '');
       setTimeout(() => window.scrollTo(0, currentScroll), 0);
+    });
+  };
+
+  const handleEditAnnotation = (annotation, e) => {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    setEditingAnnotationId(annotation.id);
+    setEditingNote(annotation.note || '');
+  };
+
+  const handleSaveAnnotationNote = (annotationId, e) => {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    const currentScroll = window.scrollY;
+    api.updateAnnotation(annotationId, { note: editingNote }).then(() => {
+      setEditingAnnotationId(null);
+      setEditingNote('');
+      return api.highlight(id);
+    }).then(result => {
+      setData(result);
+      setTimeout(() => window.scrollTo(0, currentScroll), 0);
+    }).catch(err => {
+      console.error('保存评价失败:', err);
+      alert('保存失败：' + err.message);
     });
   };
 
@@ -651,19 +675,55 @@ export default function HighlightDetail() {
                     "{annotation.selected_text}"
                   </div>
                 )}
-                {annotation.note && (
-                  <div className="annotation-note">
-                    {annotation.note}
+                {editingAnnotationId === annotation.id ? (
+                  <div className="mt-2" onClick={e => e.stopPropagation()}>
+                    <textarea
+                      className="textarea w-full"
+                      rows={3}
+                      value={editingNote}
+                      onChange={e => setEditingNote(e.target.value)}
+                      autoFocus
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={e => handleSaveAnnotationNote(annotation.id, e)}
+                        className="btn btn-primary text-sm py-1"
+                      >
+                        保存
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); setEditingAnnotationId(null); }}
+                        className="btn btn-secondary text-sm py-1"
+                      >
+                        取消
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  <>
+                    {annotation.note ? (
+                      <div className="annotation-note">{annotation.note}</div>
+                    ) : (
+                      <div className="text-gray-400 text-sm italic mt-1">（无评价文本）</div>
+                    )}
+                  </>
                 )}
-                <div className="annotation-meta flex items-center justify-between">
+                <div className="annotation-meta flex items-center justify-between mt-2">
                   <span>{new Date(annotation.created_at).toLocaleString()}</span>
-                  <button
-                    onClick={e => handleDeleteAnnotation(annotation.id, e)}
-                    className="text-gray-400 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={e => handleEditAnnotation(annotation, e)}
+                      className="text-gray-400 hover:text-blue-500 transition-colors text-xs"
+                    >
+                      {annotation.note ? '编辑评价' : '添加评价'}
+                    </button>
+                    <button
+                      onClick={e => handleDeleteAnnotation(annotation.id, e)}
+                      className="text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

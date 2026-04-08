@@ -352,10 +352,15 @@ def update_annotation(annotation_id: int, update: AnnotationUpdate):
     repo.update_note(annotation_id, update.note)
 
     # Get updated annotation
-    updated = conn.execute("SELECT * FROM annotations WHERE id = ?", (annotation_id,)).fetchone()
+    updated_list = repo.get_by_highlight(
+        conn.execute("SELECT highlight_id FROM annotations WHERE id = ?", (annotation_id,)).fetchone()[0]
+    )
     conn.close()
 
-    return annotation_to_dict(dict(updated))
+    updated = next((a for a in updated_list if a.id == annotation_id), None)
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to fetch updated annotation")
+    return annotation_to_dict(updated)
 
 
 @app.delete("/api/annotations/{annotation_id}")
