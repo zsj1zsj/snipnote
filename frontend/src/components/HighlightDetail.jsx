@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { ArrowLeft, Star, Check, Trash2, Plus, Lightbulb, ExternalLink, Sparkles, Highlighter } from 'lucide-react';
+import { ArrowLeft, Star, Check, Trash2, Plus, Lightbulb, ExternalLink, Sparkles, Highlighter, Download, Copy } from 'lucide-react';
 import api from '../api';
+import { exportHighlightAsMarkdown } from '../exportMarkdown';
 
 // Custom components to Render highlights in markdown
 function HighlightedMarkdown({ content, annotations }) {
@@ -522,6 +523,14 @@ export default function HighlightDetail() {
           {highlight.is_read ? '标记未读' : '标记已读'}
         </button>
         <button
+          onClick={() => exportHighlightAsMarkdown(highlight, annotations)}
+          className="btn btn-secondary"
+          title="导出 Markdown"
+        >
+          <Download size={16} className="inline mr-1" />
+          导出
+        </button>
+        <button
           onClick={handleDelete}
           className="btn btn-secondary text-red-500 hover:bg-red-50 ml-auto"
         >
@@ -737,6 +746,18 @@ export default function HighlightDetail() {
           style={{ left: menuPos.x, top: menuPos.y }}
           onClick={e => e.stopPropagation()}
         >
+          <button
+            onClick={e => {
+              e.preventDefault();
+              e.stopPropagation();
+              navigator.clipboard.writeText(selectedText).catch(() => {});
+              setMenuPos(null);
+            }}
+            className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 text-gray-700 flex items-center gap-2 transition-colors"
+          >
+            <Copy size={14} className="text-gray-500" />
+            复制
+          </button>
           <button
             onClick={handleAddHighlightOnly}
             className="w-full px-4 py-2.5 text-left text-sm hover:bg-yellow-50 text-gray-700 flex items-center gap-2 transition-colors"

@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
-import { Star, Check, Trash2, BookOpen } from 'lucide-react';
+import { Star, Check, Trash2, BookOpen, Download } from 'lucide-react';
 import { useState } from 'react';
 import api from '../api';
+import { exportHighlightAsMarkdown } from '../exportMarkdown';
 
 export default function HighlightCard({ highlight, onUpdate, onDelete }) {
   const [loading, setLoading] = useState(false);
@@ -120,6 +121,13 @@ export default function HighlightCard({ highlight, onUpdate, onDelete }) {
             title={highlight.is_read ? '标记未读' : '标记已读'}
           >
             <Check size={18} />
+          </button>
+          <button
+            onClick={e => { e.preventDefault(); e.stopPropagation(); exportHighlightAsMarkdown(highlight); }}
+            className="read-btn"
+            title="导出 Markdown"
+          >
+            <Download size={18} />
           </button>
           <button
             onClick={handleDelete}
