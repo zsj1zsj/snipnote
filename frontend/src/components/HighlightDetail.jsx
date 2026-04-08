@@ -42,12 +42,6 @@ function HighlightedMarkdown({ content, annotations }) {
 
   const pattern = new RegExp(`(${patterns.map(escapeRegex).join('|')})`, 'gi');
 
-  const parts = content.split(pattern);
-
-  if (parts.length === 1) {
-    return renderMarkdown(content);
-  }
-
   return (
     <ReactMarkdown
       components={{
