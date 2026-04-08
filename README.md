@@ -25,6 +25,16 @@ uv pip install fastapi uvicorn
 
 > 前端已预编译，拉代码后无需构建，直接启动即可。
 
+### 前端开发
+
+修改 `frontend/` 下的代码后，需要重新构建：
+
+```bash
+cd frontend
+npm install   # 首次或依赖变更时
+npm run build # 编译到 frontend/dist，后端直接 serve 该目录
+```
+
 ## 快速开始
 
 ### 启动 Web UI

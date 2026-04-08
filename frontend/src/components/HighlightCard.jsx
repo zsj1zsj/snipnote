@@ -54,8 +54,24 @@ export default function HighlightCard({ highlight, onUpdate, onDelete }) {
     ? highlight.tags.split(',').map((t) => t.trim()).filter(Boolean)
     : [];
 
-  // Display summary if available, otherwise first 300 chars of text
-  const displayContent = highlight.summary || (highlight.text ? highlight.text.slice(0, 300) + (highlight.text.length > 300 ? '...' : '') : '');
+  // Strip markdown syntax for plain-text preview
+  const stripMarkdown = (text) => {
+    if (!text) return '';
+    let s = text;
+    s = s.replace(/```[\s\S]*?```/g, ' ');        // fenced code blocks
+    s = s.replace(/!\[[^\]]*\]\([^)]*\)/g, '');    // images
+    s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1'); // links → text only
+    s = s.replace(/^#{1,6}\s+/gm, '');             // headings
+    s = s.replace(/(\*\*|__)(.*?)\1/g, '$2');      // bold
+    s = s.replace(/(\*|_)(.*?)\1/g, '$2');         // italic
+    s = s.replace(/`([^`]+)`/g, '$1');             // inline code
+    s = s.replace(/\n{2,}/g, '\n');                // collapse blank lines
+    return s.trim();
+  };
+
+  // Display summary if available, otherwise first 300 chars of cleaned text
+  const cleanText = stripMarkdown(highlight.summary || highlight.text || '');
+  const displayContent = cleanText.slice(0, 300) + (cleanText.length > 300 ? '...' : '');
 
   return (
     <Link
