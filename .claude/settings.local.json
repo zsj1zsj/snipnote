@@ -15,7 +15,8 @@
       "mcp__context7__query-docs",
       "Bash(uv sync:*)",
       "Bash(rm:*)",
-      "Bash(source:*)"
+      "Bash(source:*)",
+      "Bash(lsof:*)"
     ]
   }
 }
