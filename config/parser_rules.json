@@ -569,6 +569,32 @@
         "qrcode"
       ],
       "max_images": 3
+    },
+
+    "_default": {
+      "domains": ["*"],
+      "drop_patterns": [
+        "[京沪粤浙苏闽冀豫鄂湘川渝黔云桂琼皖赣晋蒙辽吉黑]ICP备\\d+号",
+        "公网安备\\s*\\d+",
+        "工信部备案",
+        "^\\s*©|^\\s*Copyright\\s*©",
+        "^\\s*(All Rights Reserved|版权所有|保留所有权利)\\s*$",
+        "^\\s*(首页|网站地图|隐私政策|使用条款|免责声明|联系我们|关于我们)\\s*$",
+        "^\\s*(上一篇|下一篇|上一条|下一条|上一页|下一页|返回顶部|回到顶部)\\s*$",
+        "^\\s*(prev(ious)?\\s*(post|article)?|next\\s*(post|article)?)\\s*$",
+        "^\\s*(home|about|contact|sitemap|terms|privacy)\\s*$",
+        "^\\s*(登录|注册|立即登录|免费注册)\\s*$",
+        "^\\s*(log\\s*in|sign\\s*up|subscribe)\\s*$",
+        "^\\s*\\[\\s*\\]"
+      ],
+      "text_replacements": [
+        {"pattern": "\\[\\d+\\]", "to": ""},
+        {"pattern": "\\s{2,}", "to": " "}
+      ],
+      "image_drop_keywords": [
+        "logo", "icon", "favicon", "avatar", "banner",
+        "qrcode", "wechat", "weibo", "sprite", "placeholder"
+      ]
     }
   }
 }

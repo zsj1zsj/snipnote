@@ -643,10 +643,15 @@ RULES: list[BaseSiteRule] = build_rules()
 
 
 def choose_rule(host: str) -> BaseSiteRule | None:
+    fallback: BaseSiteRule | None = None
     for rule in RULES:
+        # "*" domain rule acts as a catch-all fallback; keep iterating
+        if isinstance(rule, ConfigSiteRule) and "*" in rule.domains:
+            fallback = rule
+            continue
         if rule.matches(host):
             return rule
-    return None
+    return fallback
 
 
 def _attempt_fetch(url: str, headers: dict[str, str], timeout: int) -> bytes:
