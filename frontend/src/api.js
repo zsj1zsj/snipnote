@@ -144,6 +144,13 @@ export const api = {
       body: JSON.stringify({ url }),
     }),
 
+  // Async add-from-URL (returns immediately, parses in background)
+  addLinkAsync: (url) =>
+    fetchJSON(`${API_BASE}/highlights/from-url`, {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    }),
+
   // Health check
   health: () => fetchJSON(`${API_BASE}/health`),
 };

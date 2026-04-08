@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional, List
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -655,6 +655,53 @@ def parse_url(request: ParseLinkRequest):
         return {"title": result.title, "content": result.markdown}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Parsing failed: {str(e)}")
+
+
+def _parse_and_update_highlight(highlight_id: int, url: str, db_path):
+    """Background task: parse URL and update highlight with real content."""
+    try:
+        result = parse_link_to_markdown(url)
+        conn = connect(db_path)
+        conn.execute(
+            "UPDATE highlights SET text = ?, source = ? WHERE id = ?",
+            (result.markdown, result.title, highlight_id),
+        )
+        conn.commit()
+        conn.close()
+    except Exception:
+        # On failure, mark the placeholder so user knows parsing failed
+        try:
+            conn = connect(db_path)
+            conn.execute(
+                "UPDATE highlights SET text = ? WHERE id = ? AND text = ?",
+                ("（解析失败，请删除后重新添加）", highlight_id, "（正在解析中，请稍后刷新查看…）"),
+            )
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+
+@app.post("/api/highlights/from-url")
+def create_highlight_from_url(request: ParseLinkRequest, background_tasks: BackgroundTasks):
+    """Create a highlight from a URL immediately, parse content in background."""
+    from urllib.parse import urlparse
+    host = urlparse(request.url).netloc or request.url
+    placeholder = "（正在解析中，请稍后刷新查看…）"
+
+    db_path = get_db_path()
+    conn = connect(db_path)
+    repo = HighlightRepository(conn)
+    highlight_id = repo.add(
+        text=placeholder,
+        source=host,
+        location=request.url,
+    )
+    conn.close()
+
+    background_tasks.add_task(_parse_and_update_highlight, highlight_id, request.url, db_path)
+
+    return {"id": highlight_id}
 
 
 # Health check
