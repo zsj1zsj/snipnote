@@ -19,48 +19,39 @@
 ## 安装依赖
 
 ```bash
-# 安装 Python 依赖 (使用 uv)
-uv venv .venv
-source .venv/bin/activate
-uv pip install -r pyproject.toml
-
-# 安装前端依赖（仅首次或更新前端时需要）
-cd frontend && npm install && cd ..
+# 安装 Python 依赖
+uv pip install fastapi uvicorn
 ```
+
+> 前端已预编译，拉代码后无需构建，直接启动即可。
 
 ## 快速开始
 
 ### 启动 Web UI
 
 ```bash
-python3 webui.py
+uv run python3 webui.py
 ```
 
 然后访问：`http://127.0.0.1:8787`
-
-### 更新前端后重新构建
-
-```bash
-cd frontend && npm run build && cd ..
-```
 
 ### CLI 命令
 
 ```bash
 # 添加摘录
-python3 readlite.py add --text "First highlight" --source "Deep Work" --author "Cal Newport" --tags productivity,focus
+uv run python3 readlite.py add --text "First highlight" --source "Deep Work" --author "Cal Newport" --tags productivity,focus
 
 # 列出摘录
-python3 readlite.py list
+uv run python3 readlite.py list
 
 # 复习
-python3 readlite.py review
+uv run python3 readlite.py review
 
 # 生成日报
-python3 readlite.py daily
+uv run python3 readlite.py daily
 
 # 指定数据库
-python3 readlite.py --db /path/to/readlite.db list
+uv run python3 readlite.py --db /path/to/readlite.db list
 ```
 
 ## Web UI 页面说明
