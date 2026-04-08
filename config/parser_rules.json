@@ -4,6 +4,62 @@
     "https://cdn.eu.amplitude.com/script/f3474234bacde7a4dcbceaf2e21dfbad.experiment.js"
   ],
   "rules": {
+    "wikipedia": {
+      "domains": ["wikipedia.org"],
+      "title_pattern": "(?is)<h1[^>]*id=[\"']firstHeading[\"'][^>]*>(.*?)</h1>",
+      "primary_container_ids": ["mw-content-text"],
+      "drop_html_patterns": [
+        "(?is)<table[^>]*\\bclass=[\"'][^\"']*\\binfobox\\b[^\"']*[\"'][^>]*>.*?</table>",
+        "(?is)<div[^>]*\\bid=[\"']toc[\"'][^>]*>.*?</div>",
+        "(?is)<div[^>]*\\bclass=[\"'][^\"']*\\bnavbox[^\"']*[\"'][^>]*>.*?</div>",
+        "(?is)<div[^>]*\\bclass=[\"'][^\"']*\\bsister-wikipedia[^\"']*[\"'][^>]*>.*?</div>",
+        "(?is)<div[^>]*\\bclass=[\"'][^\"']*\\bportalbox[^\"']*[\"'][^>]*>.*?</div>",
+        "(?is)<span[^>]*\\bclass=[\"'][^\"']*\\bmw-editsection\\b[^\"']*[\"'][^>]*>.*?</span>"
+      ],
+      "drop_patterns": [
+        "^\\d+(\\.\\d+)*\\s+\\S",
+        "^\\s*(编辑|隐藏|显示|目录|参考|\\[edit\\])\\s*$",
+        "维基媒体基金会",
+        "维基百科®",
+        "本页面最后修订",
+        "Wikimedia Foundation",
+        "Creative Commons",
+        "^\\[\\s*\\]"
+      ],
+      "stop_patterns": [
+        "^参考文献$",
+        "^注释$",
+        "^外部链接$",
+        "^延伸阅读$",
+        "^References$",
+        "^External links$",
+        "^See also$",
+        "^另见$"
+      ],
+      "text_replacements": [
+        {"pattern": "\\[\\[\\s*\\d+\\s*\\]\\]\\([^)]*\\)", "to": ""},
+        {"pattern": "\\[\\d+\\]", "to": ""},
+        {"pattern": "\\[来源请求\\]", "to": ""},
+        {"pattern": "\\[编辑\\]", "to": ""},
+        {"pattern": "\\[注\\s*\\d*\\]", "to": ""},
+        {"pattern": "\\[\\s*edit\\s*\\]", "to": ""},
+        {"pattern": "\\[([^\\]]+)\\]\\(/wiki/(?:[^()]*|\\([^)]*\\))*\\)", "to": "\\1"},
+        {"pattern": "\\[([^\\]]+)\\]\\(/w/(?:[^()]*|\\([^)]*\\))*\\)", "to": "\\1"},
+        {"pattern": "\\[([^\\]]+)\\]\\(https?://[a-z]{2,3}\\.wikipedia\\.org/(?:[^()]*|\\([^)]*\\))*\\)", "to": "\\1"},
+        {"pattern": "\\[([^\\]]+)\\]\\(#[^)]+\\)", "to": ""},
+        {"pattern": "\\(/w/index\\.php\\?[^)]+\\)", "to": ""},
+        {"pattern": "&action=edit&redlink=1\\)", "to": ""},
+        {"pattern": "\\s{2,}", "to": " "}
+      ],
+      "image_drop_keywords": [
+        "icon", "logo", "button", "flag", "arrow", "edit",
+        "lock", "star", "commons", "wikiquote", "wiktionary",
+        "wikiversity", "wikispecies", "wikinews", "wikisource",
+        "question_mark", "ambox", "portal",
+        "40px", "20px", "25px", "30px", "16px"
+      ],
+      "max_images": 3
+    },
     "solidot": {
       "domains": [
         "solidot.org"

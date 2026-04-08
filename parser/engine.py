@@ -508,24 +508,29 @@ class ConfigSiteRule(BaseSiteRule):
         super().__init__(domains)
 
     def primary_blocks(self, raw_html: str) -> list[tuple[str, str]]:
+        # Pre-strip unwanted HTML blocks before extraction
+        processed_html = raw_html
+        for pat in self.cfg.get("drop_html_patterns", []) or []:
+            processed_html = re.sub(str(pat), " ", processed_html, flags=re.IGNORECASE | re.DOTALL)
+
         for action_name in self.cfg.get("pre_primary_actions", []) or []:
             action = PRE_PRIMARY_ACTIONS.get(str(action_name))
             if action is None and str(action_name) == "yahoo_preloaded_state":
                 action = extract_yahoo_preloaded_blocks
             if not action:
                 continue
-            blocks = action(raw_html)
+            blocks = action(processed_html)
             if blocks:
                 return blocks
         for container_id in self.cfg.get("primary_container_ids", []) or []:
-            container_html = extract_container_by_id(raw_html, str(container_id))
+            container_html = extract_container_by_id(processed_html, str(container_id))
             if container_html:
                 blocks = fallback_extract_blocks(container_html)
                 if blocks:
                     return blocks
         patterns = self.cfg.get("primary_html_patterns", []) or []
         for pat in patterns:
-            m = re.search(str(pat), raw_html)
+            m = re.search(str(pat), processed_html)
             if m:
                 blocks = fallback_extract_blocks(m.group(1))
                 if blocks:
@@ -992,6 +997,15 @@ def parse_link_to_markdown(url: str, timeout: int = 10) -> ParseOutput:
     parser.close()
 
     title = parser.title or host or "Untitled Page"
+    # Rule-level title_pattern override (e.g. Wikipedia firstHeading)
+    if isinstance(rule, ConfigSiteRule):
+        title_pattern = str(rule.cfg.get("title_pattern") or "").strip()
+        if title_pattern and (not parser.title or parser.title == host):
+            m = re.search(title_pattern, text)
+            if m:
+                extracted = _strip_tags(m.group(1))
+                if extracted:
+                    title = extracted
     blocks = parser.blocks[:180]
     fallback_blocks = fallback_extract_blocks(text)[:180]
     jsonld_blocks = extract_jsonld_blocks(text)[:180]
