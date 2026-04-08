@@ -74,7 +74,7 @@ export default function Home() {
       {/* Quick actions */}
       <div className="grid grid-cols-2 gap-4 mb-8">
         <Link
-          to="/add"
+          to="/add-link"
           className="card p-5 flex items-center gap-4 hover:shadow-md transition-shadow"
         >
           <div className="w-10 h-10 rounded-lg bg-gray-900 flex items-center justify-center">
@@ -117,7 +117,7 @@ export default function Home() {
             <BookOpen size={48} className="empty-state-icon mx-auto" />
             <div className="empty-state-title">还没有任何摘录</div>
             <div className="empty-state-description mb-4">开始添加你的第一条摘录吧</div>
-            <Link to="/add" className="btn btn-primary">
+            <Link to="/add-link" className="btn btn-primary">
               <Plus size={16} className="inline mr-2" />
               添加摘录
             </Link>

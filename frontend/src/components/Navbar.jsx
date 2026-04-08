@@ -55,7 +55,7 @@ export default function Navbar() {
           </div>
         </div>
         <Link
-          to="/add"
+          to="/add-link"
           className="btn btn-primary flex items-center gap-2"
         >
           <Plus size={16} />
