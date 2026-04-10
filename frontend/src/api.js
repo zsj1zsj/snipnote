@@ -151,6 +151,16 @@ export const api = {
       body: JSON.stringify({ url }),
     }),
 
+  // RSS
+  getRssFeeds: () => fetchJSON(`${API_BASE}/rss/feeds`),
+  addRssFeed: (url) => fetchJSON(`${API_BASE}/rss/feeds`, { method: 'POST', body: JSON.stringify({ url }) }),
+  deleteRssFeed: (feedId) => fetchJSON(`${API_BASE}/rss/feeds/${feedId}`, { method: 'DELETE' }),
+  refreshRss: (feedId = null) => fetchJSON(`${API_BASE}/rss/refresh`, { method: 'POST', body: JSON.stringify({ feed_id: feedId }) }),
+  getRssArticles: (params = {}) => { const q = new URLSearchParams(params).toString(); return fetchJSON(`${API_BASE}/rss/articles?${q}`); },
+  getRssArticle: (id) => fetchJSON(`${API_BASE}/rss/articles/${id}`),
+  toggleRssArticleRead: (id) => fetchJSON(`${API_BASE}/rss/articles/${id}/read`, { method: 'POST' }),
+  importRssArticle: (id) => fetchJSON(`${API_BASE}/rss/articles/${id}/import`, { method: 'POST' }),
+
   // Health check
   health: () => fetchJSON(`${API_BASE}/health`),
 };

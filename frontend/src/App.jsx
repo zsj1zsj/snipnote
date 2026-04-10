@@ -10,6 +10,9 @@ import TagManager from './components/TagManager';
 import DailyReport from './components/DailyReport';
 import AddHighlight from './components/AddHighlight';
 import AddLink from './components/AddLink';
+import RssFeeds from './components/RssFeeds';
+import RssArticles from './components/RssArticles';
+import RssArticleDetail from './components/RssArticleDetail';
 
 // Keyboard shortcuts component
 function KeyboardShortcuts() {
@@ -65,6 +68,9 @@ function App() {
           <Route path="/daily" element={<DailyReport />} />
           <Route path="/add" element={<AddHighlight />} />
           <Route path="/add-link" element={<AddLink />} />
+          <Route path="/rss" element={<RssFeeds />} />
+          <Route path="/rss/articles" element={<RssArticles />} />
+          <Route path="/rss/article/:id" element={<RssArticleDetail />} />
         </Routes>
       </div>
     </BrowserRouter>

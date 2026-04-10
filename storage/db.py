@@ -57,5 +57,32 @@ def connect(db_path: Path) -> sqlite3.Connection:
             created_at TEXT NOT NULL
         )
     """)
+    # Create RSS tables
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS rss_feeds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            url TEXT NOT NULL UNIQUE,
+            site_url TEXT DEFAULT '',
+            description TEXT DEFAULT '',
+            created_at TEXT NOT NULL,
+            last_fetched_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS rss_articles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            feed_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            url TEXT NOT NULL UNIQUE,
+            author TEXT DEFAULT '',
+            summary TEXT DEFAULT '',
+            published_at TEXT DEFAULT '',
+            fetched_at TEXT NOT NULL,
+            is_read INTEGER NOT NULL DEFAULT 0,
+            is_imported INTEGER NOT NULL DEFAULT 0,
+            highlight_id INTEGER,
+            FOREIGN KEY(feed_id) REFERENCES rss_feeds(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_rss_articles_feed_id ON rss_articles(feed_id);
+    """)
     conn.commit()
     return conn

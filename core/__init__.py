@@ -45,3 +45,31 @@ class ReviewSchedule:
     def __post_init__(self):
         if self.next_review is None:
             self.next_review = date.today()
+
+
+@dataclass
+class RssFeed:
+    """An RSS/Atom feed subscription."""
+    id: Optional[int] = None
+    title: str = ""
+    url: str = ""
+    site_url: str = ""
+    description: str = ""
+    created_at: str = ""
+    last_fetched_at: Optional[str] = None
+
+
+@dataclass
+class RssArticle:
+    """An article from an RSS feed."""
+    id: Optional[int] = None
+    feed_id: int = 0
+    title: str = ""
+    url: str = ""
+    author: str = ""
+    summary: str = ""
+    published_at: str = ""
+    fetched_at: str = ""
+    is_read: int = 0
+    is_imported: int = 0
+    highlight_id: Optional[int] = None

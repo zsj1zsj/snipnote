@@ -4,7 +4,7 @@ from datetime import date
 from pathlib import Path
 from typing import Optional
 
-from core import Highlight, Annotation
+from core import Highlight, Annotation, RssFeed, RssArticle
 
 
 def today() -> date:
@@ -232,3 +232,107 @@ class AnnotationRepository:
         """Delete an annotation."""
         self.conn.execute("DELETE FROM annotations WHERE id = ?", (annotation_id,))
         self.conn.commit()
+
+
+class RssFeedRepository:
+    """Repository for RSS feed CRUD operations."""
+
+    def __init__(self, conn: sqlite3.Connection):
+        self.conn = conn
+
+    def add(self, title: str, url: str, site_url: str = "", description: str = "") -> int:
+        now = dt.datetime.now().isoformat(timespec="seconds")
+        cursor = self.conn.execute(
+            "INSERT INTO rss_feeds (title, url, site_url, description, created_at) VALUES (?, ?, ?, ?, ?)",
+            (title, url, site_url, description, now),
+        )
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def get_by_id(self, feed_id: int) -> Optional[RssFeed]:
+        row = self.conn.execute("SELECT * FROM rss_feeds WHERE id = ?", (feed_id,)).fetchone()
+        return RssFeed(**dict(row)) if row else None
+
+    def get_by_url(self, url: str) -> Optional[RssFeed]:
+        row = self.conn.execute("SELECT * FROM rss_feeds WHERE url = ?", (url,)).fetchone()
+        return RssFeed(**dict(row)) if row else None
+
+    def list_all(self) -> list[RssFeed]:
+        rows = self.conn.execute("SELECT * FROM rss_feeds ORDER BY id DESC").fetchall()
+        return [RssFeed(**dict(row)) for row in rows]
+
+    def update_last_fetched(self, feed_id: int) -> None:
+        now = dt.datetime.now().isoformat(timespec="seconds")
+        self.conn.execute("UPDATE rss_feeds SET last_fetched_at = ? WHERE id = ?", (now, feed_id))
+        self.conn.commit()
+
+    def delete(self, feed_id: int) -> None:
+        self.conn.execute("DELETE FROM rss_feeds WHERE id = ?", (feed_id,))
+        self.conn.commit()
+
+
+class RssArticleRepository:
+    """Repository for RSS article CRUD operations."""
+
+    def __init__(self, conn: sqlite3.Connection):
+        self.conn = conn
+
+    def add(self, feed_id: int, title: str, url: str, author: str = "",
+            summary: str = "", published_at: str = "") -> int:
+        now = dt.datetime.now().isoformat(timespec="seconds")
+        cursor = self.conn.execute(
+            """INSERT INTO rss_articles (feed_id, title, url, author, summary, published_at, fetched_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (feed_id, title, url, author, summary, published_at, now),
+        )
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def url_exists(self, url: str) -> bool:
+        row = self.conn.execute("SELECT 1 FROM rss_articles WHERE url = ?", (url,)).fetchone()
+        return row is not None
+
+    def get_by_id(self, article_id: int) -> Optional[RssArticle]:
+        row = self.conn.execute("SELECT * FROM rss_articles WHERE id = ?", (article_id,)).fetchone()
+        return RssArticle(**dict(row)) if row else None
+
+    def list_by_feed(self, feed_id: int, limit: int = 50, offset: int = 0) -> list[RssArticle]:
+        rows = self.conn.execute(
+            "SELECT * FROM rss_articles WHERE feed_id = ? ORDER BY published_at DESC, id DESC LIMIT ? OFFSET ?",
+            (feed_id, limit, offset),
+        ).fetchall()
+        return [RssArticle(**dict(row)) for row in rows]
+
+    def list_all(self, feed_id: int = 0, is_read: str = "all",
+                 limit: int = 50, offset: int = 0) -> list[RssArticle]:
+        query = "SELECT * FROM rss_articles WHERE 1=1"
+        params: list = []
+        if feed_id:
+            query += " AND feed_id = ?"
+            params.append(feed_id)
+        if is_read == "unread":
+            query += " AND is_read = 0"
+        elif is_read == "read":
+            query += " AND is_read = 1"
+        query += " ORDER BY published_at DESC, id DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        rows = self.conn.execute(query, params).fetchall()
+        return [RssArticle(**dict(row)) for row in rows]
+
+    def mark_read(self, article_id: int, is_read: int = 1) -> None:
+        self.conn.execute("UPDATE rss_articles SET is_read = ? WHERE id = ?", (is_read, article_id))
+        self.conn.commit()
+
+    def mark_imported(self, article_id: int, highlight_id: int) -> None:
+        self.conn.execute(
+            "UPDATE rss_articles SET is_imported = 1, highlight_id = ? WHERE id = ?",
+            (highlight_id, article_id),
+        )
+        self.conn.commit()
+
+    def count_by_feed(self, feed_id: int) -> dict:
+        row = self.conn.execute(
+            "SELECT COUNT(*) as total, SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END) as unread FROM rss_articles WHERE feed_id = ?",
+            (feed_id,),
+        ).fetchone()
+        return {"total": row["total"] or 0, "unread": row["unread"] or 0}

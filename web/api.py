@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from storage import connect, HighlightRepository, AnnotationRepository
+from storage import connect, HighlightRepository, AnnotationRepository, RssFeedRepository, RssArticleRepository
 from scheduler import SM2Scheduler
 from services.report_service import ReportService
 from ai import summarize as ai_summarize, suggest_tags as ai_suggest_tags
@@ -99,6 +99,14 @@ class ReportGenerate(BaseModel):
 
 class ParseLinkRequest(BaseModel):
     url: str
+
+
+class RssFeedCreate(BaseModel):
+    url: str
+
+
+class RssRefreshRequest(BaseModel):
+    feed_id: Optional[int] = None
 
 
 # FastAPI app
@@ -702,6 +710,145 @@ def create_highlight_from_url(request: ParseLinkRequest, background_tasks: Backg
     background_tasks.add_task(_parse_and_update_highlight, highlight_id, request.url, db_path)
 
     return {"id": highlight_id}
+
+
+# ── RSS Endpoints ──────────────────────────────────────────────
+
+def _rss_service():
+    from services.rss_service import RssService
+    return RssService(str(get_db_path()))
+
+
+@app.get("/api/rss/feeds")
+def list_rss_feeds():
+    conn = connect(get_db_path())
+    feed_repo = RssFeedRepository(conn)
+    article_repo = RssArticleRepository(conn)
+    feeds = feed_repo.list_all()
+    result = []
+    for f in feeds:
+        counts = article_repo.count_by_feed(f.id)
+        result.append({
+            "id": f.id, "title": f.title, "url": f.url,
+            "site_url": f.site_url, "description": f.description,
+            "created_at": f.created_at, "last_fetched_at": f.last_fetched_at,
+            "total_articles": counts["total"], "unread_articles": counts["unread"],
+        })
+    conn.close()
+    return result
+
+
+@app.post("/api/rss/feeds")
+def subscribe_rss_feed(request: RssFeedCreate):
+    try:
+        result = _rss_service().subscribe(request.url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"无法获取 RSS 源: {e}")
+    return result
+
+
+@app.delete("/api/rss/feeds/{feed_id}")
+def unsubscribe_rss_feed(feed_id: int):
+    _rss_service().unsubscribe(feed_id)
+    return {"ok": True}
+
+
+@app.post("/api/rss/refresh")
+def refresh_rss(request: RssRefreshRequest):
+    svc = _rss_service()
+    try:
+        if request.feed_id:
+            count = svc.refresh_feed(request.feed_id)
+            return {"results": {str(request.feed_id): count}}
+        else:
+            results = svc.refresh_all()
+            return {"results": {str(k): v for k, v in results.items()}}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get("/api/rss/articles")
+def list_rss_articles(
+    feed_id: int = Query(0),
+    is_read: str = Query("all"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    conn = connect(get_db_path())
+    article_repo = RssArticleRepository(conn)
+    feed_repo = RssFeedRepository(conn)
+    articles = article_repo.list_all(feed_id=feed_id, is_read=is_read, limit=limit, offset=offset)
+    # Build feed name lookup
+    feeds = {f.id: f.title for f in feed_repo.list_all()}
+    result = []
+    for a in articles:
+        result.append({
+            "id": a.id, "feed_id": a.feed_id,
+            "feed_title": feeds.get(a.feed_id, ""),
+            "title": a.title, "url": a.url,
+            "author": a.author, "summary": a.summary,
+            "published_at": a.published_at, "fetched_at": a.fetched_at,
+            "is_read": a.is_read, "is_imported": a.is_imported,
+            "highlight_id": a.highlight_id,
+        })
+    conn.close()
+    return result
+
+
+@app.get("/api/rss/articles/{article_id}")
+def get_rss_article(article_id: int):
+    conn = connect(get_db_path())
+    article_repo = RssArticleRepository(conn)
+    article = article_repo.get_by_id(article_id)
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    feed_repo = RssFeedRepository(conn)
+    feed = feed_repo.get_by_id(article.feed_id)
+    conn.close()
+    return {
+        "id": article.id, "feed_id": article.feed_id,
+        "feed_title": feed.title if feed else "",
+        "title": article.title, "url": article.url,
+        "author": article.author, "summary": article.summary,
+        "published_at": article.published_at, "fetched_at": article.fetched_at,
+        "is_read": article.is_read, "is_imported": article.is_imported,
+        "highlight_id": article.highlight_id,
+    }
+
+
+@app.post("/api/rss/articles/{article_id}/read")
+def toggle_rss_article_read(article_id: int):
+    conn = connect(get_db_path())
+    article_repo = RssArticleRepository(conn)
+    article = article_repo.get_by_id(article_id)
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    new_status = 0 if article.is_read else 1
+    article_repo.mark_read(article_id, new_status)
+    conn.close()
+    return {"id": article_id, "is_read": new_status}
+
+
+@app.post("/api/rss/articles/{article_id}/import")
+def import_rss_article(article_id: int, background_tasks: BackgroundTasks):
+    conn = connect(get_db_path())
+    article_repo = RssArticleRepository(conn)
+    article = article_repo.get_by_id(article_id)
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    if article.is_imported and article.highlight_id:
+        conn.close()
+        return {"article_id": article_id, "highlight_id": article.highlight_id, "already_imported": True}
+    conn.close()
+
+    def _do_import():
+        svc = _rss_service()
+        svc.import_article(article_id)
+
+    background_tasks.add_task(_do_import)
+    return {"article_id": article_id, "importing": True}
 
 
 # Health check
