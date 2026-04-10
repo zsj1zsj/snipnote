@@ -5,6 +5,16 @@ import { ArrowLeft, Check, Download, Loader, ExternalLink } from 'lucide-react';
 import api from '../api';
 import { getCache, setCache } from '../hooks/useCache';
 
+function markReadInListCache(articleId) {
+  const listCache = getCache('rss_articles');
+  if (listCache?.articles) {
+    listCache.articles = listCache.articles.map(a =>
+      a.id === parseInt(articleId) ? { ...a, is_read: 1 } : a
+    );
+    setCache('rss_articles', listCache);
+  }
+}
+
 export default function RssArticleDetail() {
   const { id } = useParams();
   const cacheKey = `rss_article_${id}`;
@@ -18,9 +28,9 @@ export default function RssArticleDetail() {
   useEffect(() => {
     // If we have cached content, skip fetching
     if (cached?.article && cached?.content) {
-      // Still mark as read if needed
       if (!cached.article.is_read) {
         api.toggleRssArticleRead(id);
+        markReadInListCache(id);
       }
       return;
     }
@@ -30,6 +40,7 @@ export default function RssArticleDetail() {
       if (!data.is_read) {
         api.toggleRssArticleRead(id).then((result) => {
           setArticle(prev => ({ ...prev, is_read: result.is_read }));
+          markReadInListCache(id);
         });
       }
     }).catch(console.error);
