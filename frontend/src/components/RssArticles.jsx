@@ -2,26 +2,31 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Check, Download, Loader, ExternalLink } from 'lucide-react';
 import api from '../api';
+import { getCache, setCache } from '../hooks/useCache';
+
+const CACHE_KEY = 'rss_articles';
 
 export default function RssArticles() {
   const [searchParams] = useSearchParams();
   const initialFeedId = searchParams.get('feed_id') || '';
 
-  const [articles, setArticles] = useState([]);
-  const [feeds, setFeeds] = useState([]);
-  const [feedId, setFeedId] = useState(initialFeedId);
-  const [readFilter, setReadFilter] = useState('all');
-  const [loading, setLoading] = useState(true);
+  const cached = getCache(CACHE_KEY);
+  const [articles, setArticles] = useState(cached?.articles || []);
+  const [feeds, setFeeds] = useState(cached?.feeds || []);
+  const [feedId, setFeedId] = useState(cached?.feedId ?? initialFeedId);
+  const [readFilter, setReadFilter] = useState(cached?.readFilter || 'all');
+  const [loading, setLoading] = useState(!cached);
   const [importing, setImporting] = useState({});
 
-  const loadArticles = async () => {
+  const loadArticles = async (fid, rf) => {
     setLoading(true);
     try {
       const params = { limit: 100 };
-      if (feedId) params.feed_id = feedId;
-      if (readFilter !== 'all') params.is_read = readFilter;
+      if (fid) params.feed_id = fid;
+      if (rf !== 'all') params.is_read = rf;
       const data = await api.getRssArticles(params);
       setArticles(data);
+      setCache(CACHE_KEY, { articles: data, feeds, feedId: fid, readFilter: rf });
     } catch (err) {
       console.error(err);
     } finally {
@@ -30,15 +35,32 @@ export default function RssArticles() {
   };
 
   useEffect(() => {
-    api.getRssFeeds().then(setFeeds).catch(console.error);
+    api.getRssFeeds().then((data) => {
+      setFeeds(data);
+      if (cached) setCache(CACHE_KEY, { ...cached, feeds: data });
+    }).catch(console.error);
   }, []);
 
-  useEffect(() => { loadArticles(); }, [feedId, readFilter]);
+  useEffect(() => {
+    // Skip initial load if we have valid cache with matching filters
+    if (cached && feedId === (cached.feedId ?? initialFeedId) && readFilter === (cached.readFilter || 'all') && articles.length > 0) {
+      return;
+    }
+    loadArticles(feedId, readFilter);
+  }, [feedId, readFilter]);
+
+  const updateArticles = (updater) => {
+    setArticles(prev => {
+      const next = updater(prev);
+      setCache(CACHE_KEY, { articles: next, feeds, feedId, readFilter });
+      return next;
+    });
+  };
 
   const handleToggleRead = async (articleId) => {
     try {
       const result = await api.toggleRssArticleRead(articleId);
-      setArticles(prev => prev.map(a => a.id === articleId ? { ...a, is_read: result.is_read } : a));
+      updateArticles(prev => prev.map(a => a.id === articleId ? { ...a, is_read: result.is_read } : a));
     } catch (err) {
       console.error(err);
     }
@@ -49,9 +71,9 @@ export default function RssArticles() {
     try {
       const result = await api.importRssArticle(articleId);
       if (result.already_imported) {
-        setArticles(prev => prev.map(a => a.id === articleId ? { ...a, is_imported: 1, highlight_id: result.highlight_id } : a));
+        updateArticles(prev => prev.map(a => a.id === articleId ? { ...a, is_imported: 1, highlight_id: result.highlight_id } : a));
       } else {
-        setArticles(prev => prev.map(a => a.id === articleId ? { ...a, is_imported: 1 } : a));
+        updateArticles(prev => prev.map(a => a.id === articleId ? { ...a, is_imported: 1 } : a));
       }
     } catch (err) {
       console.error(err);

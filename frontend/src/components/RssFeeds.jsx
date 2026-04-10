@@ -2,9 +2,12 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Rss, Plus, Trash2, RefreshCw, Loader, ExternalLink } from 'lucide-react';
 import api from '../api';
+import { getCache, setCache, clearCache } from '../hooks/useCache';
+
+const CACHE_KEY = 'rss_feeds';
 
 export default function RssFeeds() {
-  const [feeds, setFeeds] = useState([]);
+  const [feeds, setFeeds] = useState(() => getCache(CACHE_KEY) || []);
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -15,12 +18,15 @@ export default function RssFeeds() {
     try {
       const data = await api.getRssFeeds();
       setFeeds(data);
+      setCache(CACHE_KEY, data);
     } catch (err) {
       console.error(err);
     }
   };
 
-  useEffect(() => { loadFeeds(); }, []);
+  useEffect(() => {
+    if (!getCache(CACHE_KEY)) loadFeeds();
+  }, []);
 
   const handleSubscribe = async () => {
     if (!url.trim()) return;
@@ -60,6 +66,7 @@ export default function RssFeeds() {
       const result = await api.refreshRss();
       const total = Object.values(result.results).reduce((a, b) => a + b, 0);
       setSuccess(`刷新完成，共获取 ${total} 篇新文章`);
+      clearCache('rss_articles');
       loadFeeds();
     } catch (err) {
       setError(err.message);

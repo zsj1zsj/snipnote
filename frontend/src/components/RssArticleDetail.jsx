@@ -3,21 +3,30 @@ import { useParams, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { ArrowLeft, Check, Download, Loader, ExternalLink } from 'lucide-react';
 import api from '../api';
+import { getCache, setCache } from '../hooks/useCache';
 
 export default function RssArticleDetail() {
   const { id } = useParams();
-  const [article, setArticle] = useState(null);
-  const [content, setContent] = useState(null);
+  const cacheKey = `rss_article_${id}`;
+  const cached = getCache(cacheKey);
+  const [article, setArticle] = useState(cached?.article || null);
+  const [content, setContent] = useState(cached?.content || null);
   const [loadingContent, setLoadingContent] = useState(false);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    // If we have cached content, skip fetching
+    if (cached?.article && cached?.content) {
+      // Still mark as read if needed
+      if (!cached.article.is_read) {
+        api.toggleRssArticleRead(id);
+      }
+      return;
+    }
     api.getRssArticle(id).then((data) => {
       setArticle(data);
-      // Auto-fetch full content
-      fetchContent(data.url);
-      // Auto-mark as read
+      fetchContent(data.url, data);
       if (!data.is_read) {
         api.toggleRssArticleRead(id).then((result) => {
           setArticle(prev => ({ ...prev, is_read: result.is_read }));
@@ -26,12 +35,13 @@ export default function RssArticleDetail() {
     }).catch(console.error);
   }, [id]);
 
-  const fetchContent = async (url) => {
+  const fetchContent = async (url, articleData) => {
     setLoadingContent(true);
     setError(null);
     try {
       const result = await api.parseUrl(url);
       setContent(result.content);
+      setCache(cacheKey, { article: articleData, content: result.content });
     } catch (err) {
       setError(`无法加载全文: ${err.message}`);
     } finally {
