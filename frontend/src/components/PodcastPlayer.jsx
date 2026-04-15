@@ -1,14 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Headphones, Loader, Sparkles } from 'lucide-react';
+import { ArrowLeft, Headphones, Loader, Sparkles, Play, Pause, SkipBack, SkipForward } from 'lucide-react';
 import api from '../api';
+import { usePlayer } from '../contexts/PlayerContext';
 import { getCache, setCache } from '../hooks/useCache';
 
-function formatDuration(seconds) {
-  if (!seconds) return '0:00';
+const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
+
+function formatTime(seconds) {
+  if (!seconds || isNaN(seconds)) return '0:00';
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
+  const s = Math.floor(seconds % 60);
   if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   return `${m}:${String(s).padStart(2, '0')}`;
 }
@@ -23,6 +26,7 @@ function formatDate(dateStr) {
 export default function PodcastPlayer() {
   const { id } = useParams();
   const cacheKey = `podcast_episode_${id}`;
+  const { loadEpisode, togglePlay, seek, skip, setRate, isPlaying, currentTime, duration, rate } = usePlayer();
 
   const cached = getCache(cacheKey);
   const [episode, setEpisode] = useState(cached?.episode || null);
@@ -30,16 +34,15 @@ export default function PodcastPlayer() {
   const [isListened, setIsListened] = useState(cached?.episode?.is_listened || 0);
   const [aiSummary, setAiSummary] = useState(cached?.episode?.ai_summary || '');
   const [summarizing, setSummarizing] = useState(false);
+  const seekingRef = useRef(false);
 
-  const audioRef = useRef(null);
-  const progressTimerRef = useRef(null);
-  const initialPositionRef = useRef(0);
-
+  // Load episode data
   useEffect(() => {
     if (cached) {
       setEpisode(cached.episode);
       setIsListened(cached.episode.is_listened);
-      initialPositionRef.current = cached.episode.play_position || 0;
+      setAiSummary(cached.episode.ai_summary || '');
+      loadEpisode(cached.episode, cached.episode.play_position || 0);
       return;
     }
     api.getPodcastEpisode(id)
@@ -47,80 +50,39 @@ export default function PodcastPlayer() {
         setEpisode(data);
         setIsListened(data.is_listened);
         setAiSummary(data.ai_summary || '');
-        initialPositionRef.current = data.play_position || 0;
         setCache(cacheKey, { episode: data });
+        loadEpisode(data, data.play_position || 0);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Restore play position once audio is ready
+  // Sync is_listened from context (audio ended → context marked listened)
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !episode) return;
+    if (episode) setIsListened(episode.is_listened || 0);
+  }, [episode?.is_listened]);
 
-    const onCanPlay = () => {
-      if (initialPositionRef.current > 0) {
-        audio.currentTime = initialPositionRef.current;
+  const handleSeekChange = (e) => {
+    seekingRef.current = true;
+    seek((parseFloat(e.target.value) / 100) * duration);
+    setTimeout(() => { seekingRef.current = false; }, 200);
+  };
+
+  const handleToggleListened = async () => {
+    try {
+      const result = await api.toggleEpisodeListened(parseInt(id));
+      setIsListened(result.is_listened);
+      const c = getCache(cacheKey);
+      if (c?.episode) { c.episode.is_listened = result.is_listened; setCache(cacheKey, c); }
+      const listCache = getCache('podcast_episodes');
+      if (listCache?.episodes) {
+        listCache.episodes = listCache.episodes.map(ep =>
+          ep.id === parseInt(id) ? { ...ep, is_listened: result.is_listened } : ep
+        );
+        setCache('podcast_episodes', listCache);
       }
-    };
-
-    audio.addEventListener('canplay', onCanPlay, { once: true });
-    return () => audio.removeEventListener('canplay', onCanPlay);
-  }, [episode]);
-
-  // Save play position every 10 seconds
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !episode) return;
-
-    const onTimeUpdate = () => {
-      if (progressTimerRef.current) return;
-      progressTimerRef.current = setTimeout(() => {
-        progressTimerRef.current = null;
-        const pos = Math.floor(audio.currentTime);
-        if (pos > 0) {
-          api.updatePlayProgress(parseInt(id), pos).catch(() => {});
-          // Update cache
-          const c = getCache(cacheKey);
-          if (c?.episode) {
-            c.episode.play_position = pos;
-            setCache(cacheKey, c);
-          }
-        }
-      }, 10000);
-    };
-
-    const onEnded = () => {
-      api.toggleEpisodeListened(parseInt(id)).then(() => {
-        setIsListened(1);
-        const c = getCache(cacheKey);
-        if (c?.episode) {
-          c.episode.is_listened = 1;
-          setCache(cacheKey, c);
-        }
-        // Sync to episodes list cache
-        const listCache = getCache('podcast_episodes');
-        if (listCache?.episodes) {
-          listCache.episodes = listCache.episodes.map(ep =>
-            ep.id === parseInt(id) ? { ...ep, is_listened: 1 } : ep
-          );
-          setCache('podcast_episodes', listCache);
-        }
-      }).catch(() => {});
-    };
-
-    audio.addEventListener('timeupdate', onTimeUpdate);
-    audio.addEventListener('ended', onEnded);
-    return () => {
-      audio.removeEventListener('timeupdate', onTimeUpdate);
-      audio.removeEventListener('ended', onEnded);
-      if (progressTimerRef.current) {
-        clearTimeout(progressTimerRef.current);
-        progressTimerRef.current = null;
-      }
-    };
-  }, [episode, id]);
+    } catch (err) { console.error(err); }
+  };
 
   const handleSummarize = async () => {
     setSummarizing(true);
@@ -130,9 +92,9 @@ export default function PodcastPlayer() {
         setAiSummary(result.summary);
         const c = getCache(cacheKey);
         if (c?.episode) { c.episode.ai_summary = result.summary; setCache(cacheKey, c); }
+        setSummarizing(false);
         return;
       }
-      // Poll until summarization completes (up to 3 minutes)
       let attempts = 0;
       const poll = setInterval(async () => {
         attempts++;
@@ -144,38 +106,13 @@ export default function PodcastPlayer() {
             if (c?.episode) { c.episode.ai_summary = ep.ai_summary; setCache(cacheKey, c); }
             clearInterval(poll);
             setSummarizing(false);
-          } else if (attempts >= 36) {
-            clearInterval(poll);
-            setSummarizing(false);
-          }
+          } else if (attempts >= 36) { clearInterval(poll); setSummarizing(false); }
         } catch { clearInterval(poll); setSummarizing(false); }
       }, 5000);
-    } catch (err) {
-      console.error(err);
-      setSummarizing(false);
-    }
+    } catch (err) { console.error(err); setSummarizing(false); }
   };
 
-  const handleToggleListened = async () => {
-    try {
-      const result = await api.toggleEpisodeListened(parseInt(id));
-      setIsListened(result.is_listened);
-      const c = getCache(cacheKey);
-      if (c?.episode) {
-        c.episode.is_listened = result.is_listened;
-        setCache(cacheKey, c);
-      }
-      const listCache = getCache('podcast_episodes');
-      if (listCache?.episodes) {
-        listCache.episodes = listCache.episodes.map(ep =>
-          ep.id === parseInt(id) ? { ...ep, is_listened: result.is_listened } : ep
-        );
-        setCache('podcast_episodes', listCache);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   if (loading) {
     return (
@@ -199,7 +136,7 @@ export default function PodcastPlayer() {
   const coverImage = episode.image_url || episode.show_image_url;
 
   return (
-    <div className="page-container max-w-3xl">
+    <div className="page-container max-w-3xl pb-20">
       <div className="flex items-center justify-between mb-6">
         <Link
           to="/podcast/episodes"
@@ -215,7 +152,6 @@ export default function PodcastPlayer() {
               ? 'bg-green-100 text-green-700 hover:bg-green-200'
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
-          title={isListened ? '标记未听' : '标记已听'}
         >
           <Headphones size={16} />
           {isListened ? '已听' : '标记已听'}
@@ -245,16 +181,10 @@ export default function PodcastPlayer() {
               <div className="flex items-center gap-2 text-gray-400">
                 {episode.published_at && <span>{formatDate(episode.published_at)}</span>}
                 {episode.duration_seconds > 0 && (
-                  <>
-                    <span>·</span>
-                    <span>{formatDuration(episode.duration_seconds)}</span>
-                  </>
+                  <><span>·</span><span>{formatTime(episode.duration_seconds)}</span></>
                 )}
                 {episode.season_number && episode.episode_number && (
-                  <>
-                    <span>·</span>
-                    <span>S{episode.season_number}E{episode.episode_number}</span>
-                  </>
+                  <><span>·</span><span>S{episode.season_number}E{episode.episode_number}</span></>
                 )}
               </div>
             </div>
@@ -262,22 +192,74 @@ export default function PodcastPlayer() {
         </div>
       </div>
 
-      {/* Audio player */}
+      {/* Custom audio player */}
       <div className="card p-5 mb-4">
-        <audio
-          ref={audioRef}
-          controls
-          className="w-full"
-          preload="metadata"
-          src={episode.audio_url}
-        >
-          您的浏览器不支持 HTML5 音频播放。
-        </audio>
-        {episode.play_position > 0 && !isListened && (
-          <div className="text-xs text-blue-500 mt-2 text-center">
-            上次播放到 {formatDuration(episode.play_position)}，已自动恢复
+        {/* Progress bar */}
+        <div className="mb-4">
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="0.1"
+            value={progress}
+            onChange={handleSeekChange}
+            className="w-full h-1.5 appearance-none bg-gray-200 rounded-full cursor-pointer accent-gray-900"
+          />
+          <div className="flex justify-between text-xs text-gray-400 mt-1">
+            <span>{formatTime(currentTime)}</span>
+            <span>{formatTime(duration)}</span>
           </div>
-        )}
+        </div>
+
+        {/* Controls row */}
+        <div className="flex items-center justify-between">
+          {/* Skip back */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => skip(-15)}
+              className="flex flex-col items-center text-gray-500 hover:text-gray-800 transition-colors"
+              title="后退 15 秒"
+            >
+              <SkipBack size={22} />
+              <span className="text-xs mt-0.5">15</span>
+            </button>
+
+            {/* Play/Pause */}
+            <button
+              onClick={togglePlay}
+              className="w-12 h-12 flex items-center justify-center rounded-full bg-gray-900 text-white hover:bg-gray-700 transition-colors shadow-md"
+            >
+              {isPlaying ? <Pause size={20} /> : <Play size={20} className="ml-0.5" />}
+            </button>
+
+            {/* Skip forward */}
+            <button
+              onClick={() => skip(30)}
+              className="flex flex-col items-center text-gray-500 hover:text-gray-800 transition-colors"
+              title="前进 30 秒"
+            >
+              <SkipForward size={22} />
+              <span className="text-xs mt-0.5">30</span>
+            </button>
+          </div>
+
+          {/* Speed selector */}
+          <div className="flex items-center gap-1">
+            {SPEEDS.map((s) => (
+              <button
+                key={s}
+                onClick={() => setRate(s)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                  rate === s
+                    ? 'bg-gray-900 text-white'
+                    : 'text-gray-500 hover:bg-gray-100'
+                }`}
+              >
+                {s === 1 ? '1x' : `${s}x`}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* AI Summary */}
@@ -293,23 +275,17 @@ export default function PodcastPlayer() {
               disabled={summarizing}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 hover:bg-purple-100 transition-all disabled:opacity-50"
             >
-              {summarizing ? (
-                <><Loader size={12} className="animate-spin" />生成中…</>
-              ) : (
-                <><Sparkles size={12} />生成总结</>
-              )}
+              {summarizing
+                ? <><Loader size={12} className="animate-spin" />生成中…</>
+                : <><Sparkles size={12} />生成总结</>}
             </button>
           )}
         </div>
         {aiSummary ? (
-          <div className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
-            {aiSummary}
-          </div>
+          <div className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{aiSummary}</div>
         ) : (
           <div className="text-sm text-gray-400">
-            {summarizing
-              ? '正在分析音频内容，这可能需要 1-2 分钟…'
-              : '点击「生成总结」，AI 将分析本集内容并生成摘要'}
+            {summarizing ? '正在分析音频内容，这可能需要 1-2 分钟…' : '点击「生成总结」，AI 将分析本集内容并生成摘要'}
           </div>
         )}
       </div>
@@ -318,9 +294,7 @@ export default function PodcastPlayer() {
       {episode.description && (
         <div className="card p-5">
           <h2 className="text-sm font-semibold text-gray-700 mb-3">节目简介</h2>
-          <div className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
-            {episode.description}
-          </div>
+          <div className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{episode.description}</div>
         </div>
       )}
     </div>

@@ -16,6 +16,8 @@ import RssArticleDetail from './components/RssArticleDetail';
 import PodcastShows from './components/PodcastShows';
 import PodcastEpisodes from './components/PodcastEpisodes';
 import PodcastPlayer from './components/PodcastPlayer';
+import MiniPlayer from './components/MiniPlayer';
+import { PlayerProvider } from './contexts/PlayerContext';
 
 // Keyboard shortcuts component
 function KeyboardShortcuts() {
@@ -58,6 +60,7 @@ function KeyboardShortcuts() {
 function App() {
   return (
     <BrowserRouter>
+      <PlayerProvider>
       <KeyboardShortcuts />
       <div className="min-h-screen bg-gray-50">
         <Navbar />
@@ -78,8 +81,11 @@ function App() {
           <Route path="/podcast/episodes" element={<PodcastEpisodes />} />
           <Route path="/podcast/episode/:id" element={<PodcastPlayer />} />
         </Routes>
+        <MiniPlayer />
       </div>
+      </PlayerProvider>
     </BrowserRouter>
+
   );
 }
 
