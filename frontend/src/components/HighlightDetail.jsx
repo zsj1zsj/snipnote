@@ -749,7 +749,25 @@ export default function HighlightDetail() {
             onClick={e => {
               e.preventDefault();
               e.stopPropagation();
-              navigator.clipboard.writeText(selectedText).catch(() => {});
+              if (navigator.clipboard) {
+                navigator.clipboard.writeText(selectedText).catch(() => {
+                  const ta = document.createElement('textarea');
+                  ta.value = selectedText;
+                  ta.style.cssText = 'position:fixed;opacity:0';
+                  document.body.appendChild(ta);
+                  ta.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(ta);
+                });
+              } else {
+                const ta = document.createElement('textarea');
+                ta.value = selectedText;
+                ta.style.cssText = 'position:fixed;opacity:0';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+              }
               setMenuPos(null);
             }}
             className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 text-gray-700 flex items-center gap-2 transition-colors"
