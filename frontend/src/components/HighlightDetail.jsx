@@ -601,6 +601,8 @@ export default function HighlightDetail() {
         <div
           ref={contentRef}
           className="prose-custom mb-6"
+          onContextMenu={e => e.preventDefault()}
+          style={{ WebkitTouchCallout: 'none' }}
         >
           <HighlightedMarkdown content={highlight.text} annotations={annotations} />
 
