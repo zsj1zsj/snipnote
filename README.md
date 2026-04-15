@@ -15,6 +15,8 @@
 - AI 总结（自动生成摘录摘要）
 - AI 建议标签（自动分析内容推荐标签）
 - 标签管理页面
+- **RSS 阅读器**（订阅 RSS/Atom 源，浏览文章，一键导入为摘录）
+- **Podcast 订阅**（订阅 Podcast，在线播放，自动记录播放进度）
 
 ## 安装依赖
 
@@ -77,6 +79,11 @@ uv run python3 readlite.py --db /path/to/readlite.db list
 | 日报 | `/daily` | 阅读日报查看与生成 |
 | 添加 | `/add` | 手动添加摘录 |
 | 从链接添加 | `/add-link` | 输入网址解析内容 |
+| RSS 订阅 | `/rss` | 订阅/退订 RSS 源，手动刷新 |
+| RSS 文章 | `/rss/articles` | 文章列表，已读过滤，导入为摘录 |
+| Podcast 订阅 | `/podcast` | 订阅/退订 Podcast 节目 |
+| Podcast 单集 | `/podcast/episodes` | 单集列表，收听状态过滤 |
+| Podcast 播放器 | `/podcast/episode/:id` | 在线播放，自动恢复进度 |
 
 ## 解析规则（配置化）
 
@@ -173,6 +180,8 @@ cp config/config.json.template config/config.json
 ├── frontend/      # React 前端
 ├── cli/           # CLI 入口
 ├── ai/            # LLM 插件层
+├── rss/           # RSS 解析模块
+├── podcast/       # Podcast 解析模块
 ├── services/      # 业务服务
 └── 根目录         # 向后兼容层
 ```
