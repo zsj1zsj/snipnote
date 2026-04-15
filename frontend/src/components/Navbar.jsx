@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpen, Star, Tag, Calendar, Clock, Plus, LayoutGrid, Rss } from 'lucide-react';
+import { BookOpen, Star, Tag, Calendar, Clock, Plus, LayoutGrid, Rss, Headphones } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import api from '../api';
 
@@ -21,6 +21,7 @@ export default function Navbar() {
     { path: '/tags', icon: Tag, label: '标签' },
     { path: '/daily', icon: Calendar, label: '日报' },
     { path: '/rss', icon: Rss, label: 'RSS' },
+    { path: '/podcast', icon: Headphones, label: 'Podcast' },
   ];
 
   return (

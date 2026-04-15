@@ -73,3 +73,41 @@ class RssArticle:
     is_read: int = 0
     is_imported: int = 0
     highlight_id: Optional[int] = None
+
+
+@dataclass
+class PodcastShow:
+    """A podcast show subscription."""
+    id: Optional[int] = None
+    title: str = ""
+    url: str = ""
+    site_url: str = ""
+    description: str = ""
+    image_url: str = ""
+    author: str = ""
+    language: str = ""
+    created_at: str = ""
+    last_fetched_at: Optional[str] = None
+
+
+@dataclass
+class PodcastEpisode:
+    """A single episode from a podcast show."""
+    id: Optional[int] = None
+    show_id: int = 0
+    title: str = ""
+    guid: str = ""
+    audio_url: str = ""
+    audio_type: str = ""
+    audio_length: int = 0
+    description: str = ""
+    image_url: str = ""
+    author: str = ""
+    duration: str = ""
+    duration_seconds: int = 0
+    episode_number: Optional[int] = None
+    season_number: Optional[int] = None
+    published_at: str = ""
+    fetched_at: str = ""
+    is_listened: int = 0
+    play_position: int = 0

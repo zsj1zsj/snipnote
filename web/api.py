@@ -851,6 +851,133 @@ def import_rss_article(article_id: int, background_tasks: BackgroundTasks):
     return {"article_id": article_id, "importing": True}
 
 
+# ── Podcast endpoints ──────────────────────────────────────────────────────────
+
+class PodcastShowCreate(BaseModel):
+    url: str
+
+class PodcastRefreshRequest(BaseModel):
+    show_id: Optional[int] = None
+
+class PlayProgressUpdate(BaseModel):
+    position: int  # seconds
+
+
+def _podcast_service():
+    from services.podcast_service import PodcastService
+    return PodcastService(str(get_db_path()))
+
+
+@app.get("/api/podcast/shows")
+def list_podcast_shows():
+    """List all podcast subscriptions with episode counts."""
+    conn = connect(get_db_path())
+    from podcast.repository import PodcastShowRepository, PodcastEpisodeRepository
+    show_repo = PodcastShowRepository(conn)
+    ep_repo = PodcastEpisodeRepository(conn)
+    shows = show_repo.list_all()
+    result = []
+    for show in shows:
+        counts = ep_repo.count_by_show(show.id)
+        result.append({**show.__dict__, **counts})
+    conn.close()
+    return result
+
+
+@app.post("/api/podcast/shows")
+def add_podcast_show(body: PodcastShowCreate):
+    """Subscribe to a new podcast feed."""
+    try:
+        return _podcast_service().subscribe(body.url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"订阅失败: {e}")
+
+
+@app.delete("/api/podcast/shows/{show_id}")
+def delete_podcast_show(show_id: int):
+    """Unsubscribe from a podcast."""
+    _podcast_service().unsubscribe(show_id)
+    return {"ok": True}
+
+
+@app.post("/api/podcast/refresh")
+def refresh_podcast(body: PodcastRefreshRequest):
+    """Refresh one or all podcast shows."""
+    svc = _podcast_service()
+    try:
+        if body.show_id:
+            count = svc.refresh_show(body.show_id)
+            return {"show_id": body.show_id, "new_episodes": count}
+        else:
+            results = svc.refresh_all()
+            return {"results": results, "total_new": sum(results.values())}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"刷新失败: {e}")
+
+
+@app.get("/api/podcast/episodes")
+def list_podcast_episodes(
+    show_id: int = Query(0),
+    is_listened: str = Query("all"),
+    limit: int = Query(50),
+    offset: int = Query(0),
+):
+    """List podcast episodes with optional filters."""
+    conn = connect(get_db_path())
+    from podcast.repository import PodcastEpisodeRepository, PodcastShowRepository
+    ep_repo = PodcastEpisodeRepository(conn)
+    show_repo = PodcastShowRepository(conn)
+    episodes = ep_repo.list_all(show_id=show_id, is_listened=is_listened, limit=limit, offset=offset)
+
+    # Build show_id → title map for display
+    shows = {s.id: s.title for s in show_repo.list_all()}
+    conn.close()
+
+    result = []
+    for ep in episodes:
+        d = ep.__dict__.copy()
+        d["show_title"] = shows.get(ep.show_id, "")
+        result.append(d)
+    return result
+
+
+@app.get("/api/podcast/episodes/{episode_id}")
+def get_podcast_episode(episode_id: int):
+    """Get a single episode with show title."""
+    conn = connect(get_db_path())
+    from podcast.repository import PodcastEpisodeRepository, PodcastShowRepository
+    ep = PodcastEpisodeRepository(conn).get_by_id(episode_id)
+    if not ep:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Episode not found")
+    show = PodcastShowRepository(conn).get_by_id(ep.show_id)
+    conn.close()
+    d = ep.__dict__.copy()
+    d["show_title"] = show.title if show else ""
+    d["show_image_url"] = show.image_url if show else ""
+    return d
+
+
+@app.post("/api/podcast/episodes/{episode_id}/listened")
+def toggle_episode_listened(episode_id: int):
+    """Toggle listened status for an episode."""
+    try:
+        return _podcast_service().toggle_listened(episode_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post("/api/podcast/episodes/{episode_id}/progress")
+def update_play_progress(episode_id: int, body: PlayProgressUpdate):
+    """Update playback position for an episode."""
+    _podcast_service().update_play_progress(episode_id, body.position)
+    return {"ok": True}
+
+
 # Health check
 @app.get("/api/health")
 def health_check():

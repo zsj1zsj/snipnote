@@ -13,6 +13,9 @@ import AddLink from './components/AddLink';
 import RssFeeds from './components/RssFeeds';
 import RssArticles from './components/RssArticles';
 import RssArticleDetail from './components/RssArticleDetail';
+import PodcastShows from './components/PodcastShows';
+import PodcastEpisodes from './components/PodcastEpisodes';
+import PodcastPlayer from './components/PodcastPlayer';
 
 // Keyboard shortcuts component
 function KeyboardShortcuts() {
@@ -71,6 +74,9 @@ function App() {
           <Route path="/rss" element={<RssFeeds />} />
           <Route path="/rss/articles" element={<RssArticles />} />
           <Route path="/rss/article/:id" element={<RssArticleDetail />} />
+          <Route path="/podcast" element={<PodcastShows />} />
+          <Route path="/podcast/episodes" element={<PodcastEpisodes />} />
+          <Route path="/podcast/episode/:id" element={<PodcastPlayer />} />
         </Routes>
       </div>
     </BrowserRouter>

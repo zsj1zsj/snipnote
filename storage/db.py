@@ -84,5 +84,43 @@ def connect(db_path: Path) -> sqlite3.Connection:
         );
         CREATE INDEX IF NOT EXISTS idx_rss_articles_feed_id ON rss_articles(feed_id);
     """)
+    # Create Podcast tables
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS podcast_shows (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            url TEXT NOT NULL UNIQUE,
+            site_url TEXT DEFAULT '',
+            description TEXT DEFAULT '',
+            image_url TEXT DEFAULT '',
+            author TEXT DEFAULT '',
+            language TEXT DEFAULT '',
+            created_at TEXT NOT NULL,
+            last_fetched_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS podcast_episodes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            show_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            guid TEXT NOT NULL,
+            audio_url TEXT NOT NULL,
+            audio_type TEXT DEFAULT '',
+            audio_length INTEGER DEFAULT 0,
+            description TEXT DEFAULT '',
+            image_url TEXT DEFAULT '',
+            author TEXT DEFAULT '',
+            duration TEXT DEFAULT '',
+            duration_seconds INTEGER DEFAULT 0,
+            episode_number INTEGER,
+            season_number INTEGER,
+            published_at TEXT DEFAULT '',
+            fetched_at TEXT NOT NULL,
+            is_listened INTEGER NOT NULL DEFAULT 0,
+            play_position INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY(show_id) REFERENCES podcast_shows(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_podcast_episodes_show_id ON podcast_episodes(show_id);
+        CREATE INDEX IF NOT EXISTS idx_podcast_episodes_guid ON podcast_episodes(guid);
+    """)
     conn.commit()
     return conn

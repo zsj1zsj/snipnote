@@ -161,6 +161,16 @@ export const api = {
   toggleRssArticleRead: (id) => fetchJSON(`${API_BASE}/rss/articles/${id}/read`, { method: 'POST' }),
   importRssArticle: (id) => fetchJSON(`${API_BASE}/rss/articles/${id}/import`, { method: 'POST' }),
 
+  // Podcast
+  getPodcastShows: () => fetchJSON(`${API_BASE}/podcast/shows`),
+  addPodcastShow: (url) => fetchJSON(`${API_BASE}/podcast/shows`, { method: 'POST', body: JSON.stringify({ url }) }),
+  deletePodcastShow: (showId) => fetchJSON(`${API_BASE}/podcast/shows/${showId}`, { method: 'DELETE' }),
+  refreshPodcast: (showId = null) => fetchJSON(`${API_BASE}/podcast/refresh`, { method: 'POST', body: JSON.stringify({ show_id: showId }) }),
+  getPodcastEpisodes: (params = {}) => { const q = new URLSearchParams(params).toString(); return fetchJSON(`${API_BASE}/podcast/episodes?${q}`); },
+  getPodcastEpisode: (id) => fetchJSON(`${API_BASE}/podcast/episodes/${id}`),
+  toggleEpisodeListened: (id) => fetchJSON(`${API_BASE}/podcast/episodes/${id}/listened`, { method: 'POST' }),
+  updatePlayProgress: (id, position) => fetchJSON(`${API_BASE}/podcast/episodes/${id}/progress`, { method: 'POST', body: JSON.stringify({ position }) }),
+
   // Health check
   health: () => fetchJSON(`${API_BASE}/health`),
 };
