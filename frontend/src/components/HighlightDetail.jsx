@@ -339,17 +339,18 @@ export default function HighlightDetail() {
             const rect = range.getBoundingClientRect();
             const menuWidth = 252;
             const menuHeight = 44;
-            const gap = 10;
+            const gap = 8;
 
             let x = rect.left + rect.width / 2 - menuWidth / 2;
-            let y = rect.top - menuHeight - gap;
+            // Default: show below the selection (native toolbar appears above, ours below)
+            let y = rect.bottom + gap;
 
             // Clamp horizontally within viewport
             x = Math.max(8, Math.min(x, window.innerWidth - menuWidth - 8));
 
-            // If would go above viewport, show below selection instead
-            if (y < 8) {
-              y = rect.bottom + gap;
+            // If no room below, show above selection instead
+            if (y + menuHeight > window.innerHeight - 8) {
+              y = rect.top - menuHeight - gap;
             }
 
             setMenuPos({ x, y });
@@ -601,8 +602,6 @@ export default function HighlightDetail() {
         <div
           ref={contentRef}
           className="prose-custom mb-6"
-          onContextMenu={e => e.preventDefault()}
-          style={{ WebkitTouchCallout: 'none' }}
         >
           <HighlightedMarkdown content={highlight.text} annotations={annotations} />
 
