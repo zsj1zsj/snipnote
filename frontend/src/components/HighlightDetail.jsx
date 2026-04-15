@@ -321,53 +321,50 @@ export default function HighlightDetail() {
     });
   };
 
-  const handleContextMenu = (e) => {
-    const selection = window.getSelection();
-    const text = selection ? selection.toString().trim() : '';
-
-    if (text && text.length > 0) {
-      e.preventDefault();
-      e.stopPropagation();
-      setSelectedText(text);
-
-      const menuWidth = 200;
-      const menuHeight = 120;
-      let x = e.clientX;
-      let y = e.clientY;
-
-      if (x + menuWidth > window.innerWidth) {
-        x = window.innerWidth - menuWidth - 10;
-      }
-      if (y + menuHeight > window.innerHeight) {
-        y = window.innerHeight - menuHeight - 10;
-      }
-
-      setMenuPos({ x, y });
-    } else {
-      setMenuPos(null);
-      setSelectedText('');
-    }
-  };
-
+  // Detect text selection (works on both desktop mouseup and mobile touchend)
   useEffect(() => {
-    const handleClick = (e) => {
-      if (menuRef.current && menuRef.current.contains(e.target)) return;
-      setMenuPos(null);
-    };
-    document.addEventListener('click', handleClick);
+    let timer = null;
+    const handleSelectionChange = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const selection = window.getSelection();
+        const text = selection ? selection.toString().trim() : '';
 
-    const handleDocumentContextMenu = (e) => {
-      const selection = window.getSelection();
-      const text = selection ? selection.toString().trim() : '';
-      if (text && text.length > 0) {
-        e.preventDefault();
-      }
-    };
-    document.addEventListener('contextmenu', handleDocumentContextMenu);
+        if (text && text.length > 0 && selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          // Only show menu if selection is inside our content area
+          if (contentRef.current && contentRef.current.contains(range.startContainer)) {
+            setSelectedText(text);
 
+            const rect = range.getBoundingClientRect();
+            const menuWidth = 252;
+            const menuHeight = 44;
+            const gap = 10;
+
+            let x = rect.left + rect.width / 2 - menuWidth / 2;
+            let y = rect.top - menuHeight - gap;
+
+            // Clamp horizontally within viewport
+            x = Math.max(8, Math.min(x, window.innerWidth - menuWidth - 8));
+
+            // If would go above viewport, show below selection instead
+            if (y < 8) {
+              y = rect.bottom + gap;
+            }
+
+            setMenuPos({ x, y });
+            return;
+          }
+        }
+        setMenuPos(null);
+        setSelectedText('');
+      }, 100);
+    };
+
+    document.addEventListener('selectionchange', handleSelectionChange);
     return () => {
-      document.removeEventListener('click', handleClick);
-      document.removeEventListener('contextmenu', handleDocumentContextMenu);
+      clearTimeout(timer);
+      document.removeEventListener('selectionchange', handleSelectionChange);
     };
   }, []);
 
@@ -604,12 +601,11 @@ export default function HighlightDetail() {
         <div
           ref={contentRef}
           className="prose-custom mb-6"
-          onContextMenu={handleContextMenu}
         >
           <HighlightedMarkdown content={highlight.text} annotations={annotations} />
 
           <div className="mt-4 pt-4 border-t border-dashed border-gray-200 text-center text-xs text-gray-400">
-            选中文字后右键可添加高亮或笔记
+            选中文字可添加高亮或笔记
           </div>
         </div>
 
@@ -667,7 +663,7 @@ export default function HighlightDetail() {
         </div>
 
         {annotations.length === 0 ? (
-          <p className="text-center py-6 text-gray-400">暂无笔记，选中文字后右键添加高亮或笔记</p>
+          <p className="text-center py-6 text-gray-400">暂无笔记，选中文字后可添加高亮或笔记</p>
         ) : (
           <div className="space-y-4">
             {annotations.map((annotation, index) => (
@@ -741,18 +737,18 @@ export default function HighlightDetail() {
       {menuPos && (
         <div
           ref={menuRef}
-          className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-50 min-w-[180px]"
+          className="fixed z-50 flex items-center bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden"
           style={{ left: menuPos.x, top: menuPos.y }}
-          onClick={e => e.stopPropagation()}
+          onMouseDown={e => e.preventDefault()}
         >
           <button
-            onClick={e => {
+            onMouseDown={e => {
               e.preventDefault();
-              e.stopPropagation();
+              const copyText = selectedText;
               if (navigator.clipboard) {
-                navigator.clipboard.writeText(selectedText).catch(() => {
+                navigator.clipboard.writeText(copyText).catch(() => {
                   const ta = document.createElement('textarea');
-                  ta.value = selectedText;
+                  ta.value = copyText;
                   ta.style.cssText = 'position:fixed;opacity:0';
                   document.body.appendChild(ta);
                   ta.select();
@@ -761,7 +757,7 @@ export default function HighlightDetail() {
                 });
               } else {
                 const ta = document.createElement('textarea');
-                ta.value = selectedText;
+                ta.value = copyText;
                 ta.style.cssText = 'position:fixed;opacity:0';
                 document.body.appendChild(ta);
                 ta.select();
@@ -770,22 +766,26 @@ export default function HighlightDetail() {
               }
               setMenuPos(null);
             }}
-            className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 text-gray-700 flex items-center gap-2 transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 whitespace-nowrap transition-colors"
           >
             <Copy size={14} className="text-gray-500" />
             复制
           </button>
+          <div className="w-px h-5 bg-gray-200 flex-shrink-0" />
           <button
-            onClick={handleAddHighlightOnly}
-            className="w-full px-4 py-2.5 text-left text-sm hover:bg-yellow-50 text-gray-700 flex items-center gap-2 transition-colors"
-          >
-            <Highlighter size={14} className="text-yellow-500" />
-            添加高亮
-          </button>
-          <button
-            onClick={e => {
+            onMouseDown={e => {
               e.preventDefault();
-              e.stopPropagation();
+              handleAddHighlightOnly(e);
+            }}
+            className="flex items-center gap-1.5 px-4 py-2.5 text-sm text-yellow-600 hover:bg-yellow-50 whitespace-nowrap transition-colors"
+          >
+            <Highlighter size={14} />
+            高亮
+          </button>
+          <div className="w-px h-5 bg-gray-200 flex-shrink-0" />
+          <button
+            onMouseDown={e => {
+              e.preventDefault();
               setMenuPos(null);
               setTimeout(() => {
                 const input = document.getElementById('note-input');
@@ -795,10 +795,10 @@ export default function HighlightDetail() {
                 }
               }, 50);
             }}
-            className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 text-gray-700 flex items-center gap-2 transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50 whitespace-nowrap transition-colors"
           >
-            <Plus size={14} className="text-blue-500" />
-            添加笔记
+            <Plus size={14} />
+            笔记
           </button>
         </div>
       )}
