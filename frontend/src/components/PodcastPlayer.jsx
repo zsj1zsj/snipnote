@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Headphones, Loader, Sparkles, Play, Pause, SkipBack, SkipForward } from 'lucide-react';
+import { ArrowLeft, Headphones, Loader, Sparkles, Play, Pause, SkipBack, SkipForward, BookmarkPlus } from 'lucide-react';
 import api from '../api';
 import { usePlayer } from '../contexts/PlayerContext';
 import { getCache, setCache } from '../hooks/useCache';
@@ -34,6 +34,8 @@ export default function PodcastPlayer() {
   const [isListened, setIsListened] = useState(cached?.episode?.is_listened || 0);
   const [aiSummary, setAiSummary] = useState(cached?.episode?.ai_summary || '');
   const [summarizing, setSummarizing] = useState(false);
+  const [savedHighlightId, setSavedHighlightId] = useState(null);
+  const [saving, setSaving] = useState(false);
   const seekingRef = useRef(false);
 
   // Load episode data
@@ -82,6 +84,18 @@ export default function PodcastPlayer() {
         setCache('podcast_episodes', listCache);
       }
     } catch (err) { console.error(err); }
+  };
+
+  const handleSaveHighlight = async () => {
+    setSaving(true);
+    try {
+      const result = await api.savePodcastHighlight(parseInt(id));
+      setSavedHighlightId(result.highlight_id);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSummarize = async () => {
@@ -282,7 +296,27 @@ export default function PodcastPlayer() {
           )}
         </div>
         {aiSummary ? (
-          <div className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{aiSummary}</div>
+          <>
+            <div className="text-sm text-gray-600 leading-relaxed whitespace-pre-line mb-3">{aiSummary}</div>
+            {savedHighlightId ? (
+              <Link
+                to={`/highlight/${savedHighlightId}`}
+                className="inline-flex items-center gap-1.5 text-xs text-green-600 hover:text-green-700 font-medium"
+              >
+                <BookmarkPlus size={13} />
+                已保存到摘录，点击查看
+              </Link>
+            ) : (
+              <button
+                onClick={handleSaveHighlight}
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-50 text-gray-600 hover:bg-gray-100 transition-all disabled:opacity-50"
+              >
+                {saving ? <Loader size={12} className="animate-spin" /> : <BookmarkPlus size={12} />}
+                保存为摘录
+              </button>
+            )}
+          </>
         ) : (
           <div className="text-sm text-gray-400">
             {summarizing ? '正在分析音频内容，这可能需要 1-2 分钟…' : '点击「生成总结」，AI 将分析本集内容并生成摘要'}

@@ -171,6 +171,9 @@ export const api = {
   toggleEpisodeListened: (id) => fetchJSON(`${API_BASE}/podcast/episodes/${id}/listened`, { method: 'POST' }),
   updatePlayProgress: (id, position) => fetchJSON(`${API_BASE}/podcast/episodes/${id}/progress`, { method: 'POST', body: JSON.stringify({ position }) }),
   summarizePodcastEpisode: (id) => fetchJSON(`${API_BASE}/podcast/episodes/${id}/summarize`, { method: 'POST' }),
+  savePodcastHighlight: (id) => fetchJSON(`${API_BASE}/podcast/episodes/${id}/save-highlight`, { method: 'POST' }),
+  exportPodcastOpml: () => `${API_BASE}/podcast/opml`,
+  importPodcastOpml: (xmlText) => fetchJSON(`${API_BASE}/podcast/opml`, { method: 'POST', headers: { 'Content-Type': 'text/xml' }, body: xmlText }),
 
   // Health check
   health: () => fetchJSON(`${API_BASE}/health`),

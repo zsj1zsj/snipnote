@@ -3,11 +3,14 @@
 This module provides REST API endpoints for the React frontend.
 """
 import os
+import threading
+import time
+from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional, List
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -109,8 +112,47 @@ class RssRefreshRequest(BaseModel):
     feed_id: Optional[int] = None
 
 
+def _auto_refresh_worker(interval_hours: float):
+    """Background thread: refresh all podcast shows every interval_hours."""
+    import logging
+    log = logging.getLogger("snipnote.auto_refresh")
+    while True:
+        time.sleep(interval_hours * 3600)
+        try:
+            from services.podcast_service import PodcastService
+            svc = PodcastService(str(get_db_path()))
+            results = svc.refresh_all()
+            total = sum(results.values())
+            if total:
+                log.info(f"Auto-refresh: {total} new podcast episodes fetched")
+        except Exception as e:
+            log.warning(f"Auto-refresh failed: {e}")
+
+
+def _start_auto_refresh():
+    """Start the auto-refresh background thread if configured."""
+    import json, logging
+    config_path = Path(_config_dir()) / "config" / "config.json"
+    try:
+        with open(config_path) as f:
+            config = json.load(f)
+        interval = float(config.get("podcast", {}).get("auto_refresh_hours", 0))
+    except Exception:
+        interval = 0
+    if interval > 0:
+        t = threading.Thread(target=_auto_refresh_worker, args=(interval,), daemon=True)
+        t.start()
+        logging.getLogger("snipnote").info(f"Podcast auto-refresh enabled every {interval}h")
+
+
+@asynccontextmanager
+async def lifespan(app):
+    _start_auto_refresh()
+    yield
+
+
 # FastAPI app
-app = FastAPI(title="SnipNote API", version="2.0.0")
+app = FastAPI(title="SnipNote API", version="2.0.0", lifespan=lifespan)
 
 # Add CORS middleware
 app.add_middleware(
@@ -976,6 +1018,94 @@ def update_play_progress(episode_id: int, body: PlayProgressUpdate):
     """Update playback position for an episode."""
     _podcast_service().update_play_progress(episode_id, body.position)
     return {"ok": True}
+
+
+@app.get("/api/podcast/opml")
+def export_opml():
+    """Export podcast subscriptions as OPML."""
+    from fastapi.responses import Response
+    conn = connect(get_db_path())
+    from podcast.repository import PodcastShowRepository
+    shows = PodcastShowRepository(conn).list_all()
+    conn.close()
+
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+             '<opml version="2.0">',
+             '  <head><title>SnipNote Podcast Subscriptions</title></head>',
+             '  <body>',
+             '    <outline text="Podcasts" title="Podcasts">']
+    for s in shows:
+        title = s.title.replace('"', '&quot;')
+        url = s.url.replace('"', '&quot;')
+        site = s.site_url.replace('"', '&quot;') if s.site_url else ''
+        lines.append(
+            f'      <outline type="rss" text="{title}" title="{title}" '
+            f'xmlUrl="{url}" htmlUrl="{site}"/>'
+        )
+    lines += ['    </outline>', '  </body>', '</opml>']
+    return Response(content='\n'.join(lines), media_type='text/xml',
+                    headers={'Content-Disposition': 'attachment; filename="podcasts.opml"'})
+
+
+@app.post("/api/podcast/opml")
+async def import_opml(request: Request, background_tasks: BackgroundTasks):
+    """Import podcast subscriptions from OPML file (multipart or raw XML body)."""
+    import xml.etree.ElementTree as ET
+    body = await request.body()
+    try:
+        root = ET.fromstring(body)
+    except ET.ParseError as e:
+        raise HTTPException(status_code=400, detail=f"OPML 解析失败: {e}")
+
+    feed_urls = []
+    for outline in root.iter('outline'):
+        url = outline.get('xmlUrl') or outline.get('xmlurl')
+        if url:
+            feed_urls.append(url.strip())
+
+    if not feed_urls:
+        raise HTTPException(status_code=400, detail="OPML 中未找到任何订阅源")
+
+    def _do_import():
+        from services.podcast_service import PodcastService
+        svc = PodcastService(str(get_db_path()))
+        for url in feed_urls:
+            try:
+                svc.subscribe(url)
+            except Exception:
+                pass
+
+    background_tasks.add_task(_do_import)
+    return {"importing": True, "count": len(feed_urls)}
+
+
+@app.post("/api/podcast/episodes/{episode_id}/save-highlight")
+def save_podcast_highlight(episode_id: int):
+    """Save podcast episode AI summary (or description) as a highlight."""
+    conn = connect(get_db_path())
+    from podcast.repository import PodcastEpisodeRepository, PodcastShowRepository
+    ep = PodcastEpisodeRepository(conn).get_by_id(episode_id)
+    if not ep:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Episode not found")
+    show = PodcastShowRepository(conn).get_by_id(ep.show_id)
+    show_title = show.title if show else ""
+    conn.close()
+
+    text = ep.ai_summary or ep.description
+    if not text:
+        raise HTTPException(status_code=400, detail="暂无可保存的内容，请先生成 AI 总结")
+
+    conn2 = connect(get_db_path())
+    highlight_id = HighlightRepository(conn2).add(
+        text=text,
+        source=ep.title,
+        author=show_title,
+        location=ep.audio_url,
+        tags="podcast",
+    )
+    conn2.close()
+    return {"highlight_id": highlight_id}
 
 
 @app.post("/api/podcast/episodes/{episode_id}/summarize")

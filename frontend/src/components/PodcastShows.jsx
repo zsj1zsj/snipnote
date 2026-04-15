@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Headphones, Plus, Trash2, RefreshCw, Loader, ExternalLink } from 'lucide-react';
+import { Headphones, Plus, Trash2, RefreshCw, Loader, ExternalLink, Upload, Download } from 'lucide-react';
 import api from '../api';
 import { getCache, setCache, clearCache } from '../hooks/useCache';
 
@@ -13,6 +13,7 @@ export default function PodcastShows() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const fileInputRef = useRef(null);
 
   const loadShows = async () => {
     try {
@@ -78,6 +79,25 @@ export default function PodcastShows() {
     }
   };
 
+  const handleExportOpml = () => {
+    window.open(api.exportPodcastOpml(), '_blank');
+  };
+
+  const handleImportOpml = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    setError(null);
+    try {
+      const result = await api.importPodcastOpml(text);
+      setSuccess(`开始导入 ${result.count} 个订阅源，后台处理中…`);
+      setTimeout(() => { clearCache(CACHE_KEY); loadShows(); }, 3000);
+    } catch (err) {
+      setError(err.message);
+    }
+    e.target.value = '';
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') handleSubscribe();
   };
@@ -98,6 +118,26 @@ export default function PodcastShows() {
             <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
             刷新全部
           </button>
+          <label className="btn btn-secondary flex items-center gap-2 cursor-pointer">
+            <Upload size={16} />
+            导入 OPML
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".opml,.xml"
+              className="hidden"
+              onChange={handleImportOpml}
+            />
+          </label>
+          {shows.length > 0 && (
+            <button
+              onClick={handleExportOpml}
+              className="btn btn-secondary flex items-center gap-2"
+            >
+              <Download size={16} />
+              导出 OPML
+            </button>
+          )}
         </div>
       </div>
 
