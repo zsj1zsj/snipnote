@@ -128,6 +128,7 @@ export default function HighlightDetail() {
   const [editingNote, setEditingNote] = useState('');
   const scrollPositionRef = useRef(0);
   const annotationRefs = useRef([]);
+  const menuRef = useRef(null);
 
   const loadHighlight = async (saveScroll = false) => {
     if (saveScroll) {
@@ -349,7 +350,10 @@ export default function HighlightDetail() {
   };
 
   useEffect(() => {
-    const handleClick = () => setMenuPos(null);
+    const handleClick = (e) => {
+      if (menuRef.current && menuRef.current.contains(e.target)) return;
+      setMenuPos(null);
+    };
     document.addEventListener('click', handleClick);
 
     const handleDocumentContextMenu = (e) => {
@@ -736,6 +740,7 @@ export default function HighlightDetail() {
 
       {menuPos && (
         <div
+          ref={menuRef}
           className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-50 min-w-[180px]"
           style={{ left: menuPos.x, top: menuPos.y }}
           onClick={e => e.stopPropagation()}
