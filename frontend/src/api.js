@@ -162,7 +162,10 @@ export const api = {
   importRssArticle: (id) => fetchJSON(`${API_BASE}/rss/articles/${id}/import`, { method: 'POST' }),
 
   // Podcast
+  searchPodcasts: (q) => fetchJSON(`${API_BASE}/podcast/search?q=${encodeURIComponent(q)}`),
+  getPodcastStats: () => fetchJSON(`${API_BASE}/podcast/stats`),
   getPodcastShows: () => fetchJSON(`${API_BASE}/podcast/shows`),
+  getPodcastShow: (id) => fetchJSON(`${API_BASE}/podcast/shows/${id}`),
   addPodcastShow: (url) => fetchJSON(`${API_BASE}/podcast/shows`, { method: 'POST', body: JSON.stringify({ url }) }),
   deletePodcastShow: (showId) => fetchJSON(`${API_BASE}/podcast/shows/${showId}`, { method: 'DELETE' }),
   refreshPodcast: (showId = null) => fetchJSON(`${API_BASE}/podcast/refresh`, { method: 'POST', body: JSON.stringify({ show_id: showId }) }),
@@ -174,6 +177,11 @@ export const api = {
   savePodcastHighlight: (id) => fetchJSON(`${API_BASE}/podcast/episodes/${id}/save-highlight`, { method: 'POST' }),
   exportPodcastOpml: () => `${API_BASE}/podcast/opml`,
   importPodcastOpml: (xmlText) => fetchJSON(`${API_BASE}/podcast/opml`, { method: 'POST', headers: { 'Content-Type': 'text/xml' }, body: xmlText }),
+  // Bookmarks
+  getBookmarks: (episodeId) => fetchJSON(`${API_BASE}/podcast/episodes/${episodeId}/bookmarks`),
+  addBookmark: (episodeId, position_seconds, note = '') => fetchJSON(`${API_BASE}/podcast/episodes/${episodeId}/bookmarks`, { method: 'POST', body: JSON.stringify({ position_seconds, note }) }),
+  updateBookmark: (bookmarkId, note) => fetchJSON(`${API_BASE}/podcast/bookmarks/${bookmarkId}`, { method: 'PATCH', body: JSON.stringify({ note }) }),
+  deleteBookmark: (bookmarkId) => fetchJSON(`${API_BASE}/podcast/bookmarks/${bookmarkId}`, { method: 'DELETE' }),
 
   // Health check
   health: () => fetchJSON(`${API_BASE}/health`),

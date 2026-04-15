@@ -1020,6 +1020,107 @@ def update_play_progress(episode_id: int, body: PlayProgressUpdate):
     return {"ok": True}
 
 
+@app.get("/api/podcast/search")
+def search_podcasts(q: str = Query(..., min_length=1)):
+    """Search podcasts via iTunes Search API."""
+    import json as _json
+    import urllib.parse
+    import urllib.request as _req
+    encoded = urllib.parse.quote(q)
+    url = f"https://itunes.apple.com/search?term={encoded}&media=podcast&entity=podcast&limit=15"
+    request = _req.Request(url, headers={"User-Agent": "SnipNote/1.0"})
+    try:
+        with _req.urlopen(request, timeout=10) as resp:
+            data = _json.loads(resp.read())
+        results = []
+        for item in data.get("results", []):
+            feed_url = item.get("feedUrl")
+            if not feed_url:
+                continue
+            results.append({
+                "title": item.get("trackName", ""),
+                "author": item.get("artistName", ""),
+                "feed_url": feed_url,
+                "image_url": item.get("artworkUrl100", "").replace("100x100bb", "300x300bb"),
+                "genre": item.get("primaryGenreName", ""),
+                "episode_count": item.get("trackCount", 0),
+            })
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"搜索失败: {e}")
+
+
+@app.get("/api/podcast/stats")
+def get_podcast_stats():
+    """Return global podcast listening statistics."""
+    conn = connect(get_db_path())
+    from podcast.repository import PodcastEpisodeRepository
+    stats = PodcastEpisodeRepository(conn).get_global_stats()
+    conn.close()
+    return stats
+
+
+@app.get("/api/podcast/shows/{show_id}")
+def get_podcast_show(show_id: int):
+    """Get a single podcast show with episode list grouped by season."""
+    conn = connect(get_db_path())
+    from podcast.repository import PodcastShowRepository, PodcastEpisodeRepository
+    show = PodcastShowRepository(conn).get_by_id(show_id)
+    if not show:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Show not found")
+    ep_repo = PodcastEpisodeRepository(conn)
+    episodes = ep_repo.list_by_show(show_id, limit=500)
+    counts = ep_repo.count_by_show(show_id)
+    conn.close()
+    return {**show.__dict__, **counts, "episodes": [e.__dict__ for e in episodes]}
+
+
+@app.get("/api/podcast/episodes/{episode_id}/bookmarks")
+def list_bookmarks(episode_id: int):
+    conn = connect(get_db_path())
+    from podcast.repository import PodcastBookmarkRepository
+    bms = PodcastBookmarkRepository(conn).list_by_episode(episode_id)
+    conn.close()
+    return [b.__dict__ for b in bms]
+
+
+class BookmarkCreate(BaseModel):
+    position_seconds: int
+    note: str = ""
+
+
+@app.post("/api/podcast/episodes/{episode_id}/bookmarks")
+def add_bookmark(episode_id: int, body: BookmarkCreate):
+    conn = connect(get_db_path())
+    from podcast.repository import PodcastBookmarkRepository
+    bid = PodcastBookmarkRepository(conn).add(episode_id, body.position_seconds, body.note)
+    conn.close()
+    return {"id": bid}
+
+
+class BookmarkUpdate(BaseModel):
+    note: str
+
+
+@app.patch("/api/podcast/bookmarks/{bookmark_id}")
+def update_bookmark(bookmark_id: int, body: BookmarkUpdate):
+    conn = connect(get_db_path())
+    from podcast.repository import PodcastBookmarkRepository
+    PodcastBookmarkRepository(conn).update_note(bookmark_id, body.note)
+    conn.close()
+    return {"ok": True}
+
+
+@app.delete("/api/podcast/bookmarks/{bookmark_id}")
+def delete_bookmark(bookmark_id: int):
+    conn = connect(get_db_path())
+    from podcast.repository import PodcastBookmarkRepository
+    PodcastBookmarkRepository(conn).delete(bookmark_id)
+    conn.close()
+    return {"ok": True}
+
+
 @app.get("/api/podcast/opml")
 def export_opml():
     """Export podcast subscriptions as OPML."""

@@ -18,8 +18,10 @@ export function PlayerProvider({ children }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [rate, setRateState] = useState(1);
+  const [sleepEndsAt, setSleepEndsAt] = useState(null); // Date or null
 
   const progressTimerRef = useRef(null);
+  const sleepTimerRef = useRef(null);
   const episodeIdRef = useRef(null);
 
   // Wire up audio events once
@@ -119,6 +121,17 @@ export function PlayerProvider({ children }) {
     setRateState(r);
   };
 
+  const setSleep = (minutes) => {
+    if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current);
+    if (!minutes) { setSleepEndsAt(null); return; }
+    const endsAt = new Date(Date.now() + minutes * 60 * 1000);
+    setSleepEndsAt(endsAt);
+    sleepTimerRef.current = setTimeout(() => {
+      audio.pause();
+      setSleepEndsAt(null);
+    }, minutes * 60 * 1000);
+  };
+
   const clearPlayer = () => {
     audio.pause();
     audio.src = '';
@@ -131,8 +144,8 @@ export function PlayerProvider({ children }) {
 
   return (
     <PlayerContext.Provider value={{
-      episode, isPlaying, currentTime, duration, rate,
-      loadEpisode, togglePlay, seek, skip, setRate, clearPlayer,
+      episode, isPlaying, currentTime, duration, rate, sleepEndsAt,
+      loadEpisode, togglePlay, seek, skip, setRate, setSleep, clearPlayer,
     }}>
       {children}
     </PlayerContext.Provider>

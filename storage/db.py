@@ -127,6 +127,15 @@ def connect(db_path: Path) -> sqlite3.Connection:
         );
         CREATE INDEX IF NOT EXISTS idx_podcast_episodes_show_id ON podcast_episodes(show_id);
         CREATE INDEX IF NOT EXISTS idx_podcast_episodes_guid ON podcast_episodes(guid);
+        CREATE TABLE IF NOT EXISTS podcast_bookmarks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            episode_id INTEGER NOT NULL,
+            position_seconds INTEGER NOT NULL,
+            note TEXT DEFAULT '',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(episode_id) REFERENCES podcast_episodes(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_podcast_bookmarks_episode_id ON podcast_bookmarks(episode_id);
     """)
     conn.commit()
     return conn

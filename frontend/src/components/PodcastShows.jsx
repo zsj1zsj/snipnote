@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Headphones, Plus, Trash2, RefreshCw, Loader, ExternalLink, Upload, Download } from 'lucide-react';
+import { Headphones, Plus, Trash2, RefreshCw, Loader, ExternalLink, Upload, Download, Search } from 'lucide-react';
 import api from '../api';
 import { getCache, setCache, clearCache } from '../hooks/useCache';
 
@@ -14,6 +14,10 @@ export default function PodcastShows() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const fileInputRef = useRef(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [subscribing, setSubscribing] = useState({});
 
   const loadShows = async () => {
     try {
@@ -98,6 +102,43 @@ export default function PodcastShows() {
     e.target.value = '';
   };
 
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    setSearchResults([]);
+    setError(null);
+    try {
+      const results = await api.searchPodcasts(searchQuery.trim());
+      setSearchResults(results);
+      if (results.length === 0) setError('未找到相关节目');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleSubscribeFromSearch = async (feedUrl, title) => {
+    setSubscribing(prev => ({ ...prev, [feedUrl]: true }));
+    setError(null);
+    try {
+      const result = await api.addPodcastShow(feedUrl);
+      if (result.already_subscribed) {
+        setSuccess(`「${title}」已在订阅列表中`);
+      } else {
+        setSuccess(`已订阅「${result.title}」，获取了 ${result.new_episodes} 集`);
+        clearCache(CACHE_KEY);
+        loadShows();
+      }
+      setSearchResults([]);
+      setSearchQuery('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubscribing(prev => ({ ...prev, [feedUrl]: false }));
+    }
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') handleSubscribe();
   };
@@ -152,15 +193,65 @@ export default function PodcastShows() {
         </div>
       )}
 
+      {/* Search box */}
+      <div className="flex gap-3 mb-3">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder="搜索节目名称..."
+            className="input pl-9 w-full"
+          />
+        </div>
+        <button
+          onClick={handleSearch}
+          disabled={searching || !searchQuery.trim()}
+          className="btn btn-secondary flex items-center gap-2"
+        >
+          {searching ? <Loader size={16} className="animate-spin" /> : <Search size={16} />}
+          搜索
+        </button>
+      </div>
+
+      {/* Search results */}
+      {searchResults.length > 0 && (
+        <div className="card divide-y divide-gray-100 mb-6">
+          {searchResults.map((item) => (
+            <div key={item.feed_url} className="p-3 flex items-center gap-3">
+              {item.image_url ? (
+                <img src={item.image_url} alt={item.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" onError={(e) => { e.target.style.display = 'none'; }} />
+              ) : (
+                <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                  <Headphones size={20} className="text-gray-400" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-gray-800 text-sm truncate">{item.title}</div>
+                <div className="text-xs text-gray-400 truncate">{item.author}{item.genre && ` · ${item.genre}`}</div>
+              </div>
+              <button
+                onClick={() => handleSubscribeFromSearch(item.feed_url, item.title)}
+                disabled={!!subscribing[item.feed_url]}
+                className="btn btn-primary text-xs px-3 py-1.5 flex-shrink-0"
+              >
+                {subscribing[item.feed_url] ? <Loader size={14} className="animate-spin" /> : '订阅'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex gap-3 mb-8">
         <input
           type="url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="输入 Podcast RSS 地址..."
+          placeholder="或直接输入 RSS 地址..."
           className="input flex-1"
-          autoFocus
         />
         <button
           onClick={handleSubscribe}
@@ -193,7 +284,7 @@ export default function PodcastShows() {
                   <Headphones size={24} className="text-gray-400" />
                 </div>
               )}
-              <div className="flex-1 min-w-0">
+              <Link to={`/podcast/show/${show.id}`} className="flex-1 min-w-0 hover:opacity-75">
                 <div className="font-medium text-gray-800 truncate">{show.title}</div>
                 {show.author && (
                   <div className="text-sm text-gray-500 truncate">{show.author}</div>
@@ -202,7 +293,7 @@ export default function PodcastShows() {
                   {show.total} 集 · {show.unlistened} 集未听
                   {show.last_fetched_at && ` · 最后刷新 ${show.last_fetched_at.split('T')[0]}`}
                 </div>
-              </div>
+              </Link>
               <div className="flex items-center gap-2">
                 <Link
                   to={`/podcast/episodes?show_id=${show.id}`}

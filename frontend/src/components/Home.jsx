@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Clock, Star, Plus, ArrowRight } from 'lucide-react';
+import { BookOpen, Clock, Star, Plus, ArrowRight, Headphones } from 'lucide-react';
 import api from '../api';
 import HighlightCard from './HighlightCard';
 
 export default function Home() {
   const [highlights, setHighlights] = useState([]);
   const [stats, setStats] = useState({ total: 0, due: 0, favorites: 0 });
+  const [podcastStats, setPodcastStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -16,12 +17,14 @@ export default function Home() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [highlightsData, statsData] = await Promise.all([
+      const [highlightsData, statsData, podcastStatsData] = await Promise.all([
         api.highlights({ limit: 10 }),
         api.getStats(),
+        api.getPodcastStats().catch(() => null),
       ]);
       setHighlights(highlightsData);
       setStats(statsData);
+      setPodcastStats(podcastStatsData);
     } catch (err) {
       console.error('Failed to load data:', err);
     } finally {
@@ -70,6 +73,32 @@ export default function Home() {
           </div>
         ))}
       </div>
+
+      {/* Podcast stats */}
+      {podcastStats && podcastStats.total_episodes > 0 && (
+        <div className="card p-4 mb-6 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
+            <Headphones size={20} className="text-indigo-500" />
+          </div>
+          <div className="flex-1 grid grid-cols-3 gap-2 text-center">
+            <div>
+              <div className="text-lg font-semibold text-gray-800">{podcastStats.total_episodes}</div>
+              <div className="text-xs text-gray-400">总集数</div>
+            </div>
+            <div>
+              <div className="text-lg font-semibold text-gray-800">{podcastStats.total_hours_listened}h</div>
+              <div className="text-xs text-gray-400">已收听</div>
+            </div>
+            <div>
+              <div className="text-lg font-semibold text-gray-800">{podcastStats.this_week_listened}</div>
+              <div className="text-xs text-gray-400">本周完成</div>
+            </div>
+          </div>
+          <Link to="/podcast" className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0">
+            <ArrowRight size={16} />
+          </Link>
+        </div>
+      )}
 
       {/* Quick actions */}
       <div className="grid grid-cols-2 gap-4 mb-8">

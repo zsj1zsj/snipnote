@@ -2,7 +2,7 @@ import datetime as dt
 import sqlite3
 from typing import Optional
 
-from core import PodcastShow, PodcastEpisode
+from core import PodcastShow, PodcastEpisode, PodcastBookmark
 
 
 class PodcastShowRepository:
@@ -135,3 +135,59 @@ class PodcastEpisodeRepository:
             (show_id,),
         ).fetchone()
         return {"total": row["total"] or 0, "unlistened": row["unlistened"] or 0}
+
+    def get_global_stats(self) -> dict:
+        """Return listening statistics across all shows."""
+        row = self.conn.execute("""
+            SELECT
+                COUNT(*) as total_episodes,
+                SUM(CASE WHEN is_listened = 1 THEN 1 ELSE 0 END) as listened_episodes,
+                SUM(CASE WHEN is_listened = 1 THEN duration_seconds ELSE 0 END) as total_seconds_listened,
+                SUM(CASE WHEN is_listened = 0 AND play_position > 0 THEN play_position ELSE 0 END) as in_progress_seconds
+            FROM podcast_episodes
+        """).fetchone()
+        # This week (last 7 days)
+        week_row = self.conn.execute("""
+            SELECT COUNT(*) as this_week
+            FROM podcast_episodes
+            WHERE is_listened = 1
+              AND fetched_at >= datetime('now', '-7 days')
+        """).fetchone()
+        total_sec = (row["total_seconds_listened"] or 0) + (row["in_progress_seconds"] or 0)
+        return {
+            "total_episodes": row["total_episodes"] or 0,
+            "listened_episodes": row["listened_episodes"] or 0,
+            "total_hours_listened": round(total_sec / 3600, 1),
+            "this_week_listened": week_row["this_week"] or 0,
+        }
+
+
+class PodcastBookmarkRepository:
+    """Repository for podcast bookmark (timestamp) operations."""
+
+    def __init__(self, conn: sqlite3.Connection):
+        self.conn = conn
+
+    def add(self, episode_id: int, position_seconds: int, note: str = "") -> int:
+        now = dt.datetime.now().isoformat(timespec="seconds")
+        cursor = self.conn.execute(
+            "INSERT INTO podcast_bookmarks (episode_id, position_seconds, note, created_at) VALUES (?, ?, ?, ?)",
+            (episode_id, position_seconds, note, now),
+        )
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def list_by_episode(self, episode_id: int) -> list[PodcastBookmark]:
+        rows = self.conn.execute(
+            "SELECT * FROM podcast_bookmarks WHERE episode_id = ? ORDER BY position_seconds ASC",
+            (episode_id,),
+        ).fetchall()
+        return [PodcastBookmark(**dict(row)) for row in rows]
+
+    def update_note(self, bookmark_id: int, note: str) -> None:
+        self.conn.execute("UPDATE podcast_bookmarks SET note = ? WHERE id = ?", (note, bookmark_id))
+        self.conn.commit()
+
+    def delete(self, bookmark_id: int) -> None:
+        self.conn.execute("DELETE FROM podcast_bookmarks WHERE id = ?", (bookmark_id,))
+        self.conn.commit()

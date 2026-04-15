@@ -16,6 +16,7 @@ import RssArticleDetail from './components/RssArticleDetail';
 import PodcastShows from './components/PodcastShows';
 import PodcastEpisodes from './components/PodcastEpisodes';
 import PodcastPlayer from './components/PodcastPlayer';
+import PodcastShowDetail from './components/PodcastShowDetail';
 import MiniPlayer from './components/MiniPlayer';
 import { PlayerProvider } from './contexts/PlayerContext';
 
@@ -78,6 +79,7 @@ function App() {
           <Route path="/rss/articles" element={<RssArticles />} />
           <Route path="/rss/article/:id" element={<RssArticleDetail />} />
           <Route path="/podcast" element={<PodcastShows />} />
+          <Route path="/podcast/show/:id" element={<PodcastShowDetail />} />
           <Route path="/podcast/episodes" element={<PodcastEpisodes />} />
           <Route path="/podcast/episode/:id" element={<PodcastPlayer />} />
         </Routes>

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Headphones, Loader, Sparkles, Play, Pause, SkipBack, SkipForward, BookmarkPlus } from 'lucide-react';
+import { ArrowLeft, Headphones, Loader, Sparkles, Play, Pause, SkipBack, SkipForward, BookmarkPlus, Bookmark, Moon, Trash2 } from 'lucide-react';
 import api from '../api';
 import { usePlayer } from '../contexts/PlayerContext';
 import { getCache, setCache } from '../hooks/useCache';
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
+const SLEEP_OPTIONS = [15, 30, 45, 60];
 
 function formatTime(seconds) {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -26,7 +27,7 @@ function formatDate(dateStr) {
 export default function PodcastPlayer() {
   const { id } = useParams();
   const cacheKey = `podcast_episode_${id}`;
-  const { loadEpisode, togglePlay, seek, skip, setRate, isPlaying, currentTime, duration, rate } = usePlayer();
+  const { loadEpisode, togglePlay, seek, skip, setRate, setSleep, isPlaying, currentTime, duration, rate, sleepEndsAt } = usePlayer();
 
   const cached = getCache(cacheKey);
   const [episode, setEpisode] = useState(cached?.episode || null);
@@ -36,6 +37,9 @@ export default function PodcastPlayer() {
   const [summarizing, setSummarizing] = useState(false);
   const [savedHighlightId, setSavedHighlightId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [bookmarks, setBookmarks] = useState([]);
+  const [showSleepMenu, setShowSleepMenu] = useState(false);
+  const [sleepRemaining, setSleepRemaining] = useState('');
   const seekingRef = useRef(false);
 
   // Load episode data
@@ -63,6 +67,25 @@ export default function PodcastPlayer() {
   useEffect(() => {
     if (episode) setIsListened(episode.is_listened || 0);
   }, [episode?.is_listened]);
+
+  // Load bookmarks
+  useEffect(() => {
+    api.getBookmarks(id).then(setBookmarks).catch(() => {});
+  }, [id]);
+
+  // Sleep timer countdown display
+  useEffect(() => {
+    if (!sleepEndsAt) { setSleepRemaining(''); return; }
+    const tick = () => {
+      const secs = Math.max(0, Math.round((sleepEndsAt - Date.now()) / 1000));
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      setSleepRemaining(`${m}:${String(s).padStart(2, '0')}`);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [sleepEndsAt]);
 
   const handleSeekChange = (e) => {
     seekingRef.current = true;
@@ -96,6 +119,21 @@ export default function PodcastPlayer() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleAddBookmark = async () => {
+    const pos = Math.floor(currentTime);
+    try {
+      const result = await api.addBookmark(parseInt(id), pos);
+      setBookmarks(prev => [...prev, { id: result.id, episode_id: parseInt(id), position_seconds: pos, note: '', created_at: '' }].sort((a, b) => a.position_seconds - b.position_seconds));
+    } catch (err) { console.error(err); }
+  };
+
+  const handleDeleteBookmark = async (bookmarkId) => {
+    try {
+      await api.deleteBookmark(bookmarkId);
+      setBookmarks(prev => prev.filter(b => b.id !== bookmarkId));
+    } catch (err) { console.error(err); }
   };
 
   const handleSummarize = async () => {
@@ -257,24 +295,99 @@ export default function PodcastPlayer() {
             </button>
           </div>
 
-          {/* Speed selector */}
-          <div className="flex items-center gap-1">
-            {SPEEDS.map((s) => (
+          <div className="flex items-center gap-3">
+            {/* Speed selector */}
+            <div className="flex items-center gap-1">
+              {SPEEDS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setRate(s)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                    rate === s ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                >
+                  {s === 1 ? '1x' : `${s}x`}
+                </button>
+              ))}
+            </div>
+
+            {/* Bookmark button */}
+            <button
+              onClick={handleAddBookmark}
+              className="p-1.5 text-gray-400 hover:text-blue-500 transition-colors"
+              title="标记当前位置"
+            >
+              <Bookmark size={18} />
+            </button>
+
+            {/* Sleep timer */}
+            <div className="relative">
               <button
-                key={s}
-                onClick={() => setRate(s)}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                  rate === s
-                    ? 'bg-gray-900 text-white'
-                    : 'text-gray-500 hover:bg-gray-100'
+                onClick={() => setShowSleepMenu(p => !p)}
+                className={`flex items-center gap-1 p-1.5 rounded-md text-xs transition-colors ${
+                  sleepEndsAt ? 'text-indigo-600 font-medium' : 'text-gray-400 hover:text-gray-700'
                 }`}
+                title="睡眠定时"
               >
-                {s === 1 ? '1x' : `${s}x`}
+                <Moon size={16} />
+                {sleepRemaining && <span>{sleepRemaining}</span>}
               </button>
-            ))}
+              {showSleepMenu && (
+                <div className="absolute right-0 bottom-full mb-2 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-10 min-w-[130px]">
+                  {SLEEP_OPTIONS.map(m => (
+                    <button
+                      key={m}
+                      onClick={() => { setSleep(m); setShowSleepMenu(false); }}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      {m} 分钟后停止
+                    </button>
+                  ))}
+                  {sleepEndsAt && (
+                    <button
+                      onClick={() => { setSleep(0); setShowSleepMenu(false); }}
+                      className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 border-t border-gray-100"
+                    >
+                      取消定时
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Bookmarks */}
+      {bookmarks.length > 0 && (
+        <div className="card p-5 mb-4">
+          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3">
+            <Bookmark size={14} className="text-blue-500" />
+            书签
+          </h2>
+          <div className="space-y-1">
+            {bookmarks.map(bm => (
+              <div key={bm.id} className="flex items-center gap-3 group">
+                <button
+                  onClick={() => seek(bm.position_seconds)}
+                  className="text-xs font-mono text-blue-600 hover:text-blue-800 w-12 flex-shrink-0"
+                >
+                  {formatTime(bm.position_seconds)}
+                </button>
+                <span className="text-sm text-gray-600 flex-1 truncate">
+                  {bm.note || '（无备注）'}
+                </span>
+                <button
+                  onClick={() => handleDeleteBookmark(bm.id)}
+                  className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* AI Summary */}
       <div className="card p-5 mb-4">

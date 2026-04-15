@@ -112,3 +112,13 @@ class PodcastEpisode:
     is_listened: int = 0
     play_position: int = 0
     ai_summary: str = ""
+
+
+@dataclass
+class PodcastBookmark:
+    """A bookmark (timestamp + note) within a podcast episode."""
+    id: Optional[int] = None
+    episode_id: int = 0
+    position_seconds: int = 0
+    note: str = ""
+    created_at: str = ""

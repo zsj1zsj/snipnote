@@ -1,6 +1,7 @@
 import { useLocation, Link } from 'react-router-dom';
-import { Play, Pause, SkipBack, SkipForward, X, Headphones } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, X, Headphones, Moon } from 'lucide-react';
 import { usePlayer } from '../contexts/PlayerContext';
+import { useState, useEffect } from 'react';
 
 function formatTime(seconds) {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -13,7 +14,21 @@ function formatTime(seconds) {
 
 export default function MiniPlayer() {
   const location = useLocation();
-  const { episode, isPlaying, currentTime, duration, togglePlay, skip, clearPlayer } = usePlayer();
+  const { episode, isPlaying, currentTime, duration, togglePlay, skip, clearPlayer, sleepEndsAt } = usePlayer();
+  const [sleepLabel, setSleepLabel] = useState('');
+
+  useEffect(() => {
+    if (!sleepEndsAt) { setSleepLabel(''); return; }
+    const tick = () => {
+      const secs = Math.max(0, Math.round((sleepEndsAt - Date.now()) / 1000));
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      setSleepLabel(`${m}:${String(s).padStart(2, '0')}`);
+    };
+    tick();
+    const iv = setInterval(tick, 1000);
+    return () => clearInterval(iv);
+  }, [sleepEndsAt]);
 
   // Don't show on the player page itself, or when nothing is loaded
   if (!episode) return null;
@@ -81,6 +96,12 @@ export default function MiniPlayer() {
           >
             <SkipForward size={18} />
           </button>
+          {sleepLabel && (
+            <div className="flex items-center gap-1 text-xs text-indigo-500 font-medium px-1">
+              <Moon size={13} />
+              {sleepLabel}
+            </div>
+          )}
           <button
             onClick={clearPlayer}
             className="p-2 text-gray-400 hover:text-gray-600 transition-colors ml-1"
