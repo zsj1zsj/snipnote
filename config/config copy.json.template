@@ -16,6 +16,14 @@
         "kimi": {
             "api_base_url": "https://api.moonshot.cn/v1/chat/completions",
             "model": "kimi-k2-turbo-preview"
+        },
+        "gemini": {
+            "api_base_url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+            "model": "gemini-2.0-flash"
+        },
+        "openai": {
+            "api_base_url": "https://api.openai.com/v1/chat/completions",
+            "model": "gpt-4o-mini"
         }
     }
 }

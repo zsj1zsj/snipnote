@@ -111,3 +111,4 @@ class PodcastEpisode:
     fetched_at: str = ""
     is_listened: int = 0
     play_position: int = 0
+    ai_summary: str = ""

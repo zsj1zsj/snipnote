@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Headphones, Loader } from 'lucide-react';
+import { ArrowLeft, Headphones, Loader, Sparkles } from 'lucide-react';
 import api from '../api';
 import { getCache, setCache } from '../hooks/useCache';
 
@@ -28,6 +28,8 @@ export default function PodcastPlayer() {
   const [episode, setEpisode] = useState(cached?.episode || null);
   const [loading, setLoading] = useState(!cached);
   const [isListened, setIsListened] = useState(cached?.episode?.is_listened || 0);
+  const [aiSummary, setAiSummary] = useState(cached?.episode?.ai_summary || '');
+  const [summarizing, setSummarizing] = useState(false);
 
   const audioRef = useRef(null);
   const progressTimerRef = useRef(null);
@@ -44,6 +46,7 @@ export default function PodcastPlayer() {
       .then((data) => {
         setEpisode(data);
         setIsListened(data.is_listened);
+        setAiSummary(data.ai_summary || '');
         initialPositionRef.current = data.play_position || 0;
         setCache(cacheKey, { episode: data });
       })
@@ -118,6 +121,40 @@ export default function PodcastPlayer() {
       }
     };
   }, [episode, id]);
+
+  const handleSummarize = async () => {
+    setSummarizing(true);
+    try {
+      const result = await api.summarizePodcastEpisode(parseInt(id));
+      if (result.cached) {
+        setAiSummary(result.summary);
+        const c = getCache(cacheKey);
+        if (c?.episode) { c.episode.ai_summary = result.summary; setCache(cacheKey, c); }
+        return;
+      }
+      // Poll until summarization completes (up to 3 minutes)
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const ep = await api.getPodcastEpisode(parseInt(id));
+          if (ep.ai_summary) {
+            setAiSummary(ep.ai_summary);
+            const c = getCache(cacheKey);
+            if (c?.episode) { c.episode.ai_summary = ep.ai_summary; setCache(cacheKey, c); }
+            clearInterval(poll);
+            setSummarizing(false);
+          } else if (attempts >= 36) {
+            clearInterval(poll);
+            setSummarizing(false);
+          }
+        } catch { clearInterval(poll); setSummarizing(false); }
+      }, 5000);
+    } catch (err) {
+      console.error(err);
+      setSummarizing(false);
+    }
+  };
 
   const handleToggleListened = async () => {
     try {
@@ -239,6 +276,40 @@ export default function PodcastPlayer() {
         {episode.play_position > 0 && !isListened && (
           <div className="text-xs text-blue-500 mt-2 text-center">
             上次播放到 {formatDuration(episode.play_position)}，已自动恢复
+          </div>
+        )}
+      </div>
+
+      {/* AI Summary */}
+      <div className="card p-5 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+            <Sparkles size={14} className="text-purple-500" />
+            AI 总结
+          </h2>
+          {!aiSummary && (
+            <button
+              onClick={handleSummarize}
+              disabled={summarizing}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 hover:bg-purple-100 transition-all disabled:opacity-50"
+            >
+              {summarizing ? (
+                <><Loader size={12} className="animate-spin" />生成中…</>
+              ) : (
+                <><Sparkles size={12} />生成总结</>
+              )}
+            </button>
+          )}
+        </div>
+        {aiSummary ? (
+          <div className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
+            {aiSummary}
+          </div>
+        ) : (
+          <div className="text-sm text-gray-400">
+            {summarizing
+              ? '正在分析音频内容，这可能需要 1-2 分钟…'
+              : '点击「生成总结」，AI 将分析本集内容并生成摘要'}
           </div>
         )}
       </div>

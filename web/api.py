@@ -978,6 +978,30 @@ def update_play_progress(episode_id: int, body: PlayProgressUpdate):
     return {"ok": True}
 
 
+@app.post("/api/podcast/episodes/{episode_id}/summarize")
+def summarize_podcast_episode(episode_id: int, background_tasks: BackgroundTasks):
+    """Trigger AI summarization for a podcast episode (runs in background)."""
+    conn = connect(get_db_path())
+    from podcast.repository import PodcastEpisodeRepository
+    ep = PodcastEpisodeRepository(conn).get_by_id(episode_id)
+    conn.close()
+    if not ep:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    if ep.ai_summary:
+        return {"episode_id": episode_id, "summary": ep.ai_summary, "cached": True}
+
+    def _do_summarize():
+        from ai import summarize_podcast_episode as ai_summarize_ep
+        from podcast.repository import PodcastEpisodeRepository
+        summary = ai_summarize_ep(ep)
+        conn2 = connect(get_db_path())
+        PodcastEpisodeRepository(conn2).update_ai_summary(episode_id, summary)
+        conn2.close()
+
+    background_tasks.add_task(_do_summarize)
+    return {"episode_id": episode_id, "summarizing": True}
+
+
 # Health check
 @app.get("/api/health")
 def health_check():

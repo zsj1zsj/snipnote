@@ -113,6 +113,13 @@ class PodcastEpisodeRepository:
         )
         self.conn.commit()
 
+    def update_ai_summary(self, episode_id: int, summary: str) -> None:
+        self.conn.execute(
+            "UPDATE podcast_episodes SET ai_summary = ? WHERE id = ?",
+            (summary, episode_id),
+        )
+        self.conn.commit()
+
     def update_play_position(self, episode_id: int, position_seconds: int) -> None:
         self.conn.execute(
             "UPDATE podcast_episodes SET play_position = ? WHERE id = ?",

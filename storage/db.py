@@ -48,6 +48,11 @@ def connect(db_path: Path) -> sqlite3.Connection:
     if "summary" not in cols:
         conn.execute("ALTER TABLE highlights ADD COLUMN summary TEXT DEFAULT ''")
 
+    # Podcast episodes migration
+    ep_cols = {row["name"] for row in conn.execute("PRAGMA table_info(podcast_episodes)").fetchall()}
+    if ep_cols and "ai_summary" not in ep_cols:
+        conn.execute("ALTER TABLE podcast_episodes ADD COLUMN ai_summary TEXT DEFAULT ''")
+
     # Create daily_reports table
     conn.execute("""
         CREATE TABLE IF NOT EXISTS daily_reports (
@@ -117,6 +122,7 @@ def connect(db_path: Path) -> sqlite3.Connection:
             fetched_at TEXT NOT NULL,
             is_listened INTEGER NOT NULL DEFAULT 0,
             play_position INTEGER NOT NULL DEFAULT 0,
+            ai_summary TEXT DEFAULT '',
             FOREIGN KEY(show_id) REFERENCES podcast_shows(id) ON DELETE CASCADE
         );
         CREATE INDEX IF NOT EXISTS idx_podcast_episodes_show_id ON podcast_episodes(show_id);

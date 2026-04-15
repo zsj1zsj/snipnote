@@ -5,9 +5,12 @@ This module provides interfaces for LLM-powered features.
 Features:
 - Summarize highlight content
 - Suggest tags based on content
+- Summarize podcast episodes (Gemini: audio understanding; others: text-based)
 """
+import base64
 import json
 import os
+import tempfile
 import urllib.request
 from pathlib import Path
 from typing import Protocol
@@ -213,6 +216,158 @@ class LLMProviderImpl:
         tags = [t.strip() for t in result.split(",")]
         tags = [t for t in tags if t][:5]  # Limit to 5 tags
         return tags if tags else ["待分类"]
+
+
+_GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+_GEMINI_AUDIO_SIZE_LIMIT = 25 * 1024 * 1024  # 25 MB
+
+
+def _is_gemini_provider(config: dict) -> bool:
+    """Detect if the configured provider is Gemini."""
+    provider = config.get("llm", {}).get("provider", "")
+    if provider.lower() == "gemini":
+        return True
+    providers = config.get("providers", {})
+    url = providers.get(provider, {}).get("api_base_url", config.get("llm", {}).get("api_base_url", ""))
+    return "generativelanguage.googleapis.com" in url
+
+
+def _gemini_model(config: dict) -> str:
+    provider = config.get("llm", {}).get("provider", "gemini")
+    providers = config.get("providers", {})
+    return providers.get(provider, {}).get("model", "gemini-2.0-flash")
+
+
+def _download_audio_chunk(url: str, size_limit: int = _GEMINI_AUDIO_SIZE_LIMIT) -> tuple[bytes, str]:
+    """Download up to size_limit bytes of audio. Returns (data, mime_type)."""
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0 (compatible; SnipNote/1.0)",
+        "Range": f"bytes=0-{size_limit - 1}",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            content_type = resp.headers.get("Content-Type", "audio/mpeg").split(";")[0].strip()
+            data = resp.read(size_limit)
+        return data, content_type
+    except Exception as e:
+        raise ValueError(f"音频下载失败: {e}")
+
+
+def _gemini_upload_file(api_key: str, data: bytes, mime_type: str) -> str:
+    """Upload audio bytes to Gemini Files API. Returns file URI."""
+    upload_url = f"{_GEMINI_API_BASE}/files"
+    metadata = json.dumps({"file": {"display_name": "podcast_audio"}}).encode()
+
+    # Multipart upload
+    boundary = "podcast_boundary_snipnote"
+    body = (
+        f"--{boundary}\r\n"
+        f"Content-Type: application/json; charset=utf-8\r\n\r\n"
+    ).encode() + metadata + (
+        f"\r\n--{boundary}\r\n"
+        f"Content-Type: {mime_type}\r\n\r\n"
+    ).encode() + data + f"\r\n--{boundary}--".encode()
+
+    req = urllib.request.Request(
+        f"{upload_url}?key={api_key}",
+        data=body,
+        headers={
+            "Content-Type": f"multipart/related; boundary={boundary}",
+            "Content-Length": str(len(body)),
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        result = json.loads(resp.read())
+    return result["file"]["uri"]
+
+
+def _gemini_delete_file(api_key: str, file_uri: str) -> None:
+    """Delete a file from Gemini Files API."""
+    # file_uri looks like: https://generativelanguage.googleapis.com/v1beta/files/xxx
+    file_name = file_uri.split("/files/")[-1]
+    url = f"{_GEMINI_API_BASE}/files/{file_name}?key={api_key}"
+    req = urllib.request.Request(url, method="DELETE")
+    try:
+        urllib.request.urlopen(req, timeout=15)
+    except Exception:
+        pass
+
+
+def _gemini_summarize_audio(api_key: str, model: str, file_uri: str, episode_title: str) -> str:
+    """Call Gemini generateContent with an audio file."""
+    url = f"{_GEMINI_API_BASE}/models/{model}:generateContent?key={api_key}"
+    payload = {
+        "contents": [{
+            "parts": [
+                {"fileData": {"mimeType": "audio/mpeg", "fileUri": file_uri}},
+                {"text": (
+                    f"这是一集 Podcast，标题是「{episode_title}」。"
+                    "请根据音频内容，用中文写一段简洁的内容摘要（200字以内），"
+                    "概括本集的主要话题、核心观点和关键信息。"
+                    "只输出摘要正文，不要有标题或额外说明。"
+                )},
+            ]
+        }],
+        "generationConfig": {"temperature": 0.4},
+    }
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        result = json.loads(resp.read())
+    return result["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+
+def summarize_podcast_episode(episode) -> str:
+    """Summarize a podcast episode.
+
+    - If provider is Gemini: downloads audio and uses Gemini's audio understanding.
+    - Otherwise: uses episode description/title as text input to the configured LLM.
+
+    Args:
+        episode: PodcastEpisode dataclass instance
+
+    Returns:
+        Summary string, or error message starting with '[错误]'
+    """
+    config = _load_config()
+    api_key = config.get("llm", {}).get("api_key", "")
+    if not api_key:
+        return "[错误] 请在 config.json 中配置 API Key"
+
+    if _is_gemini_provider(config):
+        model = _gemini_model(config)
+        # Try audio-based summarization
+        try:
+            audio_data, mime_type = _download_audio_chunk(episode.audio_url)
+            file_uri = _gemini_upload_file(api_key, audio_data, mime_type)
+            try:
+                summary = _gemini_summarize_audio(api_key, model, file_uri, episode.title)
+            finally:
+                _gemini_delete_file(api_key, file_uri)
+            return summary
+        except Exception as e:
+            # Fall through to text-based if audio fails
+            fallback_reason = str(e)
+    else:
+        fallback_reason = None
+
+    # Text-based fallback: use description + title
+    text_input = f"节目标题：{episode.title}\n\n"
+    if episode.description:
+        text_input += f"节目简介：{episode.description}"
+    else:
+        text_input += "（无节目简介）"
+
+    provider = LLMProviderImpl()
+    result = provider.summarize(text_input)
+    if fallback_reason:
+        result = f"[音频处理失败，基于文字简介生成]\n{result}"
+    return result
 
 
 # Default provider

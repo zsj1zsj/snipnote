@@ -170,6 +170,7 @@ export const api = {
   getPodcastEpisode: (id) => fetchJSON(`${API_BASE}/podcast/episodes/${id}`),
   toggleEpisodeListened: (id) => fetchJSON(`${API_BASE}/podcast/episodes/${id}/listened`, { method: 'POST' }),
   updatePlayProgress: (id, position) => fetchJSON(`${API_BASE}/podcast/episodes/${id}/progress`, { method: 'POST', body: JSON.stringify({ position }) }),
+  summarizePodcastEpisode: (id) => fetchJSON(`${API_BASE}/podcast/episodes/${id}/summarize`, { method: 'POST' }),
 
   // Health check
   health: () => fetchJSON(`${API_BASE}/health`),
