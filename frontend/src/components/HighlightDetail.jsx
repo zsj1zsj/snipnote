@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { ArrowLeft, Star, Check, Trash2, Plus, Lightbulb, ExternalLink, Sparkles, Highlighter, Download, Copy } from 'lucide-react';
@@ -6,7 +6,9 @@ import api from '../api';
 import { exportHighlightAsMarkdown } from '../exportMarkdown';
 
 // Custom components to Render highlights in markdown
-function HighlightedMarkdown({ content, annotations }) {
+// memo prevents re-render when parent state changes (selectedText/menuPos),
+// which would replace DOM text nodes and destroy the active browser selection.
+const HighlightedMarkdown = memo(function HighlightedMarkdown({ content, annotations }) {
   const annotationsWithText = annotations?.filter(a => a.selected_text && a.selected_text.trim()) || [];
 
   // Reusable ReactMarkdown with custom img
@@ -101,7 +103,7 @@ function HighlightedMarkdown({ content, annotations }) {
       {content}
     </ReactMarkdown>
   );
-}
+});
 
 function extractText(children) {
   if (!children) return '';
@@ -321,53 +323,63 @@ export default function HighlightDetail() {
     });
   };
 
-  // Detect text selection (works on both desktop mouseup and mobile touchend)
+  // Show menu after selection gesture ends (mouseup/touchend — not during drag)
   useEffect(() => {
-    let timer = null;
-    const handleSelectionChange = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
+    const showMenuIfSelected = () => {
+      setTimeout(() => {
         const selection = window.getSelection();
-        const text = selection ? selection.toString().trim() : '';
-
-        if (text && text.length > 0 && selection.rangeCount > 0) {
+        const text = selection?.toString().trim() || '';
+        if (text && selection.rangeCount > 0) {
           const range = selection.getRangeAt(0);
-          // Only show menu if selection is inside our content area
           if (contentRef.current && contentRef.current.contains(range.startContainer)) {
             setSelectedText(text);
-
             const rect = range.getBoundingClientRect();
             const menuWidth = 252;
             const menuHeight = 44;
             const gap = 8;
-
             let x = rect.left + rect.width / 2 - menuWidth / 2;
-            // Default: show below the selection (native toolbar appears above, ours below)
             let y = rect.bottom + gap;
-
-            // Clamp horizontally within viewport
             x = Math.max(8, Math.min(x, window.innerWidth - menuWidth - 8));
-
-            // If no room below, show above selection instead
             if (y + menuHeight > window.innerHeight - 8) {
               y = rect.top - menuHeight - gap;
             }
-
             setMenuPos({ x, y });
             return;
           }
         }
         setMenuPos(null);
         setSelectedText('');
-      }, 100);
+      }, 30);
     };
 
-    document.addEventListener('selectionchange', handleSelectionChange);
+    document.addEventListener('mouseup', showMenuIfSelected);
+    document.addEventListener('touchend', showMenuIfSelected);
     return () => {
-      clearTimeout(timer);
-      document.removeEventListener('selectionchange', handleSelectionChange);
+      document.removeEventListener('mouseup', showMenuIfSelected);
+      document.removeEventListener('touchend', showMenuIfSelected);
     };
   }, []);
+
+  // Close menu on outside press — only mounted while menu is visible,
+  // so there are zero state updates during the selection gesture itself.
+  useEffect(() => {
+    if (!menuPos) return;
+    const handleOutsidePress = (e) => {
+      if (menuRef.current && menuRef.current.contains(e.target)) return;
+      setMenuPos(null);
+      setSelectedText('');
+    };
+    // Small delay so the touchend that just opened the menu doesn't immediately close it
+    const t = setTimeout(() => {
+      document.addEventListener('touchstart', handleOutsidePress, { once: false });
+      document.addEventListener('mousedown', handleOutsidePress, { once: false });
+    }, 50);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('touchstart', handleOutsidePress);
+      document.removeEventListener('mousedown', handleOutsidePress);
+    };
+  }, [menuPos]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -740,7 +752,6 @@ export default function HighlightDetail() {
           ref={menuRef}
           className="fixed z-50 flex items-center bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden"
           style={{ left: menuPos.x, top: menuPos.y }}
-          onMouseDown={e => e.preventDefault()}
         >
           <button
             onMouseDown={e => {
@@ -765,7 +776,9 @@ export default function HighlightDetail() {
                 document.execCommand('copy');
                 document.body.removeChild(ta);
               }
+              window.getSelection()?.removeAllRanges();
               setMenuPos(null);
+              setSelectedText('');
             }}
             className="flex items-center gap-1.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 whitespace-nowrap transition-colors"
           >
