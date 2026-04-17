@@ -1,6 +1,7 @@
-"""RSS Service - feed management, sync, and import."""
+"""RSS Service - feed management, sync, import, and OPML."""
 
 import datetime as dt
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from storage import connect, RssFeedRepository, RssArticleRepository, HighlightRepository
@@ -14,7 +15,7 @@ class RssService:
     def _conn(self):
         return connect(self.db_path)
 
-    def subscribe(self, feed_url: str) -> dict:
+    def subscribe(self, feed_url: str, category: str = "") -> dict:
         """Subscribe to an RSS feed. Fetches metadata and initial articles."""
         conn = self._conn()
         feed_repo = RssFeedRepository(conn)
@@ -30,6 +31,8 @@ class RssService:
             site_url=feed_data.site_url,
             description=feed_data.description,
         )
+        if category:
+            feed_repo.update_category(feed_id, category)
 
         article_repo = RssArticleRepository(conn)
         count = 0
@@ -54,7 +57,7 @@ class RssService:
         RssFeedRepository(conn).delete(feed_id)
 
     def refresh_feed(self, feed_id: int) -> int:
-        """Refresh a single feed. Returns count of new articles."""
+        """Refresh a single feed. Returns count of new articles. Tracks errors."""
         conn = self._conn()
         feed_repo = RssFeedRepository(conn)
         article_repo = RssArticleRepository(conn)
@@ -63,7 +66,12 @@ class RssService:
         if not feed:
             raise ValueError(f"Feed {feed_id} not found")
 
-        feed_data = fetch_feed(feed.url)
+        try:
+            feed_data = fetch_feed(feed.url)
+        except Exception as e:
+            feed_repo.update_error(feed_id, feed.error_count + 1, str(e)[:200])
+            raise
+
         count = 0
         for article in feed_data.articles:
             if not article.url or article_repo.url_exists(article.url):
@@ -79,6 +87,9 @@ class RssService:
             count += 1
 
         feed_repo.update_last_fetched(feed_id)
+        # Clear error state on success
+        if feed.error_count > 0:
+            feed_repo.clear_error(feed_id)
         return count
 
     def refresh_all(self) -> dict:
@@ -117,3 +128,57 @@ class RssService:
         article_repo.mark_imported(article_id, highlight_id)
         article_repo.mark_read(article_id)
         return highlight_id
+
+    def export_opml(self) -> str:
+        """Export RSS subscriptions as OPML XML string."""
+        conn = self._conn()
+        feeds = RssFeedRepository(conn).list_all()
+
+        # Group by category
+        categories: dict[str, list] = {}
+        for f in feeds:
+            cat = f.category or ""
+            categories.setdefault(cat, []).append(f)
+
+        lines = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<opml version="2.0">',
+            '  <head><title>SnipNote RSS Subscriptions</title></head>',
+            '  <body>',
+        ]
+
+        for cat, cat_feeds in sorted(categories.items(), key=lambda x: (x[0] == "", x[0])):
+            if cat:
+                cat_escaped = cat.replace('"', '&quot;')
+                lines.append(f'    <outline text="{cat_escaped}" title="{cat_escaped}">')
+                indent = '      '
+            else:
+                indent = '    '
+            for f in cat_feeds:
+                title = f.title.replace('"', '&quot;')
+                url = f.url.replace('"', '&quot;')
+                site = (f.site_url or '').replace('"', '&quot;')
+                lines.append(
+                    f'{indent}<outline type="rss" text="{title}" title="{title}" '
+                    f'xmlUrl="{url}" htmlUrl="{site}"/>'
+                )
+            if cat:
+                lines.append('    </outline>')
+
+        lines += ['  </body>', '</opml>']
+        return '\n'.join(lines)
+
+    def import_opml(self, xml_content: str) -> list[str]:
+        """Import RSS subscriptions from OPML. Returns list of feed URLs found."""
+        try:
+            root = ET.fromstring(xml_content)
+        except ET.ParseError as e:
+            raise ValueError(f"OPML 解析失败: {e}")
+
+        feed_urls = []
+        for outline in root.iter('outline'):
+            url = outline.get('xmlUrl') or outline.get('xmlurl')
+            if url:
+                feed_urls.append(url.strip())
+
+        return feed_urls

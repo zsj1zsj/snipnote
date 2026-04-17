@@ -55,8 +55,11 @@ class RssFeed:
     url: str = ""
     site_url: str = ""
     description: str = ""
+    category: str = ""
     created_at: str = ""
     last_fetched_at: Optional[str] = None
+    error_count: int = 0
+    last_error: str = ""
 
 
 @dataclass

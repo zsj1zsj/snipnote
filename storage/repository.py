@@ -266,6 +266,34 @@ class RssFeedRepository:
         self.conn.execute("UPDATE rss_feeds SET last_fetched_at = ? WHERE id = ?", (now, feed_id))
         self.conn.commit()
 
+    def update_title(self, feed_id: int, title: str) -> None:
+        self.conn.execute("UPDATE rss_feeds SET title = ? WHERE id = ?", (title, feed_id))
+        self.conn.commit()
+
+    def update_category(self, feed_id: int, category: str) -> None:
+        self.conn.execute("UPDATE rss_feeds SET category = ? WHERE id = ?", (category, feed_id))
+        self.conn.commit()
+
+    def update_error(self, feed_id: int, error_count: int, last_error: str) -> None:
+        self.conn.execute(
+            "UPDATE rss_feeds SET error_count = ?, last_error = ? WHERE id = ?",
+            (error_count, last_error, feed_id),
+        )
+        self.conn.commit()
+
+    def clear_error(self, feed_id: int) -> None:
+        self.conn.execute(
+            "UPDATE rss_feeds SET error_count = 0, last_error = '' WHERE id = ?",
+            (feed_id,),
+        )
+        self.conn.commit()
+
+    def list_categories(self) -> list[str]:
+        rows = self.conn.execute(
+            "SELECT DISTINCT category FROM rss_feeds WHERE category != '' ORDER BY category"
+        ).fetchall()
+        return [row["category"] for row in rows]
+
     def delete(self, feed_id: int) -> None:
         self.conn.execute("DELETE FROM rss_feeds WHERE id = ?", (feed_id,))
         self.conn.commit()
@@ -304,6 +332,7 @@ class RssArticleRepository:
         return [RssArticle(**dict(row)) for row in rows]
 
     def list_all(self, feed_id: int = 0, is_read: str = "all",
+                 search: str = "", sort: str = "published_at",
                  limit: int = 50, offset: int = 0) -> list[RssArticle]:
         query = "SELECT * FROM rss_articles WHERE 1=1"
         params: list = []
@@ -314,7 +343,14 @@ class RssArticleRepository:
             query += " AND is_read = 0"
         elif is_read == "read":
             query += " AND is_read = 1"
-        query += " ORDER BY published_at DESC, id DESC LIMIT ? OFFSET ?"
+        if search:
+            query += " AND (title LIKE ? OR summary LIKE ?)"
+            params.extend([f"%{search}%", f"%{search}%"])
+        if sort == "fetched_at":
+            query += " ORDER BY fetched_at DESC, id DESC"
+        else:
+            query += " ORDER BY published_at DESC, id DESC"
+        query += " LIMIT ? OFFSET ?"
         params.extend([limit, offset])
         rows = self.conn.execute(query, params).fetchall()
         return [RssArticle(**dict(row)) for row in rows]
@@ -329,6 +365,24 @@ class RssArticleRepository:
             (highlight_id, article_id),
         )
         self.conn.commit()
+
+    def mark_all_read(self, feed_id: int = 0) -> int:
+        """Mark all articles as read, optionally filtered by feed_id. Returns count."""
+        if feed_id:
+            cursor = self.conn.execute(
+                "UPDATE rss_articles SET is_read = 1 WHERE feed_id = ? AND is_read = 0",
+                (feed_id,),
+            )
+        else:
+            cursor = self.conn.execute("UPDATE rss_articles SET is_read = 1 WHERE is_read = 0")
+        self.conn.commit()
+        return cursor.rowcount
+
+    def total_unread(self) -> int:
+        row = self.conn.execute(
+            "SELECT COUNT(*) as c FROM rss_articles WHERE is_read = 0"
+        ).fetchone()
+        return row["c"] or 0
 
     def count_by_feed(self, feed_id: int) -> dict:
         row = self.conn.execute(

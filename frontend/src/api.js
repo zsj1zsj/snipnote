@@ -153,13 +153,20 @@ export const api = {
 
   // RSS
   getRssFeeds: () => fetchJSON(`${API_BASE}/rss/feeds`),
-  addRssFeed: (url) => fetchJSON(`${API_BASE}/rss/feeds`, { method: 'POST', body: JSON.stringify({ url }) }),
+  getRssCategories: () => fetchJSON(`${API_BASE}/rss/categories`),
+  getRssUnreadCount: () => fetchJSON(`${API_BASE}/rss/unread-count`),
+  addRssFeed: (url, category = '') => fetchJSON(`${API_BASE}/rss/feeds`, { method: 'POST', body: JSON.stringify({ url, category }) }),
+  updateRssFeed: (feedId, data) => fetchJSON(`${API_BASE}/rss/feeds/${feedId}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteRssFeed: (feedId) => fetchJSON(`${API_BASE}/rss/feeds/${feedId}`, { method: 'DELETE' }),
   refreshRss: (feedId = null) => fetchJSON(`${API_BASE}/rss/refresh`, { method: 'POST', body: JSON.stringify({ feed_id: feedId }) }),
   getRssArticles: (params = {}) => { const q = new URLSearchParams(params).toString(); return fetchJSON(`${API_BASE}/rss/articles?${q}`); },
   getRssArticle: (id) => fetchJSON(`${API_BASE}/rss/articles/${id}`),
   toggleRssArticleRead: (id) => fetchJSON(`${API_BASE}/rss/articles/${id}/read`, { method: 'POST' }),
   importRssArticle: (id) => fetchJSON(`${API_BASE}/rss/articles/${id}/import`, { method: 'POST' }),
+  markAllRssRead: (feedId = null) => fetchJSON(`${API_BASE}/rss/articles/mark-all-read`, { method: 'POST', body: JSON.stringify({ feed_id: feedId }) }),
+  batchImportRssArticles: (articleIds) => fetchJSON(`${API_BASE}/rss/articles/batch-import`, { method: 'POST', body: JSON.stringify({ article_ids: articleIds }) }),
+  exportRssOpml: () => `${API_BASE}/rss/opml`,
+  importRssOpml: (xmlText) => fetchJSON(`${API_BASE}/rss/opml`, { method: 'POST', headers: { 'Content-Type': 'text/xml' }, body: xmlText }),
 
   // Podcast
   searchPodcasts: (q) => fetchJSON(`${API_BASE}/podcast/search?q=${encodeURIComponent(q)}`),

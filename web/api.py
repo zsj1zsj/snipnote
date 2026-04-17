@@ -106,27 +106,52 @@ class ParseLinkRequest(BaseModel):
 
 class RssFeedCreate(BaseModel):
     url: str
+    category: Optional[str] = None
+
+
+class RssFeedUpdate(BaseModel):
+    title: Optional[str] = None
+    category: Optional[str] = None
 
 
 class RssRefreshRequest(BaseModel):
     feed_id: Optional[int] = None
 
 
-def _auto_refresh_worker(interval_hours: float):
-    """Background thread: refresh all podcast shows every interval_hours."""
+class RssBatchReadRequest(BaseModel):
+    feed_id: Optional[int] = None
+
+
+class RssBatchImportRequest(BaseModel):
+    article_ids: List[int]
+
+
+def _auto_refresh_worker(interval_hours: float, refresh_rss: bool, refresh_podcast: bool):
+    """Background thread: refresh feeds every interval_hours."""
     import logging
     log = logging.getLogger("snipnote.auto_refresh")
     while True:
         time.sleep(interval_hours * 3600)
-        try:
-            from services.podcast_service import PodcastService
-            svc = PodcastService(str(get_db_path()))
-            results = svc.refresh_all()
-            total = sum(results.values())
-            if total:
-                log.info(f"Auto-refresh: {total} new podcast episodes fetched")
-        except Exception as e:
-            log.warning(f"Auto-refresh failed: {e}")
+        if refresh_podcast:
+            try:
+                from services.podcast_service import PodcastService
+                svc = PodcastService(str(get_db_path()))
+                results = svc.refresh_all()
+                total = sum(results.values())
+                if total:
+                    log.info(f"Auto-refresh: {total} new podcast episodes fetched")
+            except Exception as e:
+                log.warning(f"Podcast auto-refresh failed: {e}")
+        if refresh_rss:
+            try:
+                from services.rss_service import RssService
+                svc = RssService(str(get_db_path()))
+                results = svc.refresh_all()
+                total = sum(results.values())
+                if total:
+                    log.info(f"Auto-refresh: {total} new RSS articles fetched")
+            except Exception as e:
+                log.warning(f"RSS auto-refresh failed: {e}")
 
 
 def _start_auto_refresh():
@@ -136,13 +161,28 @@ def _start_auto_refresh():
     try:
         with open(config_path) as f:
             config = json.load(f)
-        interval = float(config.get("podcast", {}).get("auto_refresh_hours", 0))
     except Exception:
-        interval = 0
+        config = {}
+
+    podcast_interval = float(config.get("podcast", {}).get("auto_refresh_hours", 0))
+    rss_interval = float(config.get("rss", {}).get("auto_refresh_hours", 0))
+
+    # Use the smaller non-zero interval, refresh each type at its own rate
+    interval = min(i for i in [podcast_interval, rss_interval] if i > 0) if any(i > 0 for i in [podcast_interval, rss_interval]) else 0
+
     if interval > 0:
-        t = threading.Thread(target=_auto_refresh_worker, args=(interval,), daemon=True)
+        t = threading.Thread(
+            target=_auto_refresh_worker,
+            args=(interval, rss_interval > 0, podcast_interval > 0),
+            daemon=True,
+        )
         t.start()
-        logging.getLogger("snipnote").info(f"Podcast auto-refresh enabled every {interval}h")
+        parts = []
+        if podcast_interval > 0:
+            parts.append(f"Podcast every {podcast_interval}h")
+        if rss_interval > 0:
+            parts.append(f"RSS every {rss_interval}h")
+        logging.getLogger("snipnote").info(f"Auto-refresh enabled: {', '.join(parts)}")
 
 
 @asynccontextmanager
@@ -773,22 +813,56 @@ def list_rss_feeds():
         result.append({
             "id": f.id, "title": f.title, "url": f.url,
             "site_url": f.site_url, "description": f.description,
+            "category": f.category,
             "created_at": f.created_at, "last_fetched_at": f.last_fetched_at,
             "total_articles": counts["total"], "unread_articles": counts["unread"],
+            "error_count": f.error_count, "last_error": f.last_error,
         })
     conn.close()
     return result
 
 
+@app.get("/api/rss/categories")
+def list_rss_categories():
+    conn = connect(get_db_path())
+    categories = RssFeedRepository(conn).list_categories()
+    conn.close()
+    return categories
+
+
+@app.get("/api/rss/unread-count")
+def rss_unread_count():
+    conn = connect(get_db_path())
+    count = RssArticleRepository(conn).total_unread()
+    conn.close()
+    return {"count": count}
+
+
 @app.post("/api/rss/feeds")
 def subscribe_rss_feed(request: RssFeedCreate):
     try:
-        result = _rss_service().subscribe(request.url)
+        result = _rss_service().subscribe(request.url, category=request.category or "")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"无法获取 RSS 源: {e}")
     return result
+
+
+@app.put("/api/rss/feeds/{feed_id}")
+def update_rss_feed(feed_id: int, update: RssFeedUpdate):
+    conn = connect(get_db_path())
+    feed_repo = RssFeedRepository(conn)
+    feed = feed_repo.get_by_id(feed_id)
+    if not feed:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Feed not found")
+    if update.title is not None:
+        feed_repo.update_title(feed_id, update.title)
+    if update.category is not None:
+        feed_repo.update_category(feed_id, update.category)
+    conn.close()
+    return {"ok": True}
 
 
 @app.delete("/api/rss/feeds/{feed_id}")
@@ -815,13 +889,15 @@ def refresh_rss(request: RssRefreshRequest):
 def list_rss_articles(
     feed_id: int = Query(0),
     is_read: str = Query("all"),
+    search: str = Query(""),
+    sort: str = Query("published_at"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
     conn = connect(get_db_path())
     article_repo = RssArticleRepository(conn)
     feed_repo = RssFeedRepository(conn)
-    articles = article_repo.list_all(feed_id=feed_id, is_read=is_read, limit=limit, offset=offset)
+    articles = article_repo.list_all(feed_id=feed_id, is_read=is_read, search=search, sort=sort, limit=limit, offset=offset)
     # Build feed name lookup
     feeds = {f.id: f.title for f in feed_repo.list_all()}
     result = []
@@ -891,6 +967,63 @@ def import_rss_article(article_id: int, background_tasks: BackgroundTasks):
 
     background_tasks.add_task(_do_import)
     return {"article_id": article_id, "importing": True}
+
+
+@app.post("/api/rss/articles/mark-all-read")
+def mark_all_rss_read(request: RssBatchReadRequest):
+    conn = connect(get_db_path())
+    article_repo = RssArticleRepository(conn)
+    count = article_repo.mark_all_read(feed_id=request.feed_id or 0)
+    conn.close()
+    return {"marked": count}
+
+
+@app.post("/api/rss/articles/batch-import")
+def batch_import_rss_articles(request: RssBatchImportRequest, background_tasks: BackgroundTasks):
+    def _do_batch():
+        svc = _rss_service()
+        for aid in request.article_ids:
+            try:
+                svc.import_article(aid)
+            except Exception:
+                pass
+
+    background_tasks.add_task(_do_batch)
+    return {"importing": True, "count": len(request.article_ids)}
+
+
+@app.get("/api/rss/opml")
+def export_rss_opml():
+    from fastapi.responses import Response
+    xml = _rss_service().export_opml()
+    return Response(
+        content=xml,
+        media_type='text/xml',
+        headers={'Content-Disposition': 'attachment; filename="rss-subscriptions.opml"'},
+    )
+
+
+@app.post("/api/rss/opml")
+async def import_rss_opml(request: Request, background_tasks: BackgroundTasks):
+    body = await request.body()
+    svc = _rss_service()
+    try:
+        feed_urls = svc.import_opml(body.decode('utf-8'))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not feed_urls:
+        raise HTTPException(status_code=400, detail="OPML 中未找到任何订阅源")
+
+    def _do_import():
+        for url in feed_urls:
+            try:
+                svc.subscribe(url)
+            except Exception:
+                pass
+
+    background_tasks.add_task(_do_import)
+    return {"importing": True, "count": len(feed_urls)}
 
 
 # ── Podcast endpoints ──────────────────────────────────────────────────────────

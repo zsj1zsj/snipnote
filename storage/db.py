@@ -137,5 +137,14 @@ def connect(db_path: Path) -> sqlite3.Connection:
         );
         CREATE INDEX IF NOT EXISTS idx_podcast_bookmarks_episode_id ON podcast_bookmarks(episode_id);
     """)
+    # RSS feeds migration: add category, error_count, last_error columns
+    rss_cols = {row["name"] for row in conn.execute("PRAGMA table_info(rss_feeds)").fetchall()}
+    if "category" not in rss_cols:
+        conn.execute("ALTER TABLE rss_feeds ADD COLUMN category TEXT DEFAULT ''")
+    if "error_count" not in rss_cols:
+        conn.execute("ALTER TABLE rss_feeds ADD COLUMN error_count INTEGER NOT NULL DEFAULT 0")
+    if "last_error" not in rss_cols:
+        conn.execute("ALTER TABLE rss_feeds ADD COLUMN last_error TEXT DEFAULT ''")
+
     conn.commit()
     return conn

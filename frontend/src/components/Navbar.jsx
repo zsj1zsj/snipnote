@@ -6,9 +6,11 @@ import api from '../api';
 export default function Navbar() {
   const location = useLocation();
   const [stats, setStats] = useState({ total: 0, due: 0, favorites: 0 });
+  const [rssUnread, setRssUnread] = useState(0);
 
   useEffect(() => {
     api.getStats().then(setStats).catch(console.error);
+    api.getRssUnreadCount().then(data => setRssUnread(data.count)).catch(console.error);
   }, []);
 
   const isActive = (path) => location.pathname === path;
@@ -20,7 +22,7 @@ export default function Navbar() {
     { path: '/favorites', icon: Star, label: '收藏', badge: stats.favorites },
     { path: '/tags', icon: Tag, label: '标签' },
     { path: '/daily', icon: Calendar, label: '日报' },
-    { path: '/rss', icon: Rss, label: 'RSS' },
+    { path: '/rss', icon: Rss, label: 'RSS', badge: rssUnread },
     { path: '/podcast', icon: Headphones, label: 'Podcast' },
   ];
 
