@@ -1388,19 +1388,14 @@ def _get_frontend_dist():
 # Serve static files if frontend is built
 frontend_dist = _get_frontend_dist()
 if frontend_dist:
-    # Mount assets directory (Vite outputs to dist/assets)
-    if (frontend_dist / "assets").exists():
-        app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
-
     # Catch-all for SPA routing - serve index.html for non-API routes
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
         """Serve the SPA for any non-API route."""
-        # If it's an API route, let it 404
         if full_path.startswith("api"):
             raise HTTPException(status_code=404, detail="Not found")
 
-        # Try to serve the file directly
+        # Try to serve the file directly (with correct MIME type)
         file_path = frontend_dist / full_path
         if file_path.exists() and file_path.is_file():
             return FileResponse(file_path)
