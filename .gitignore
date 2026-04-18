@@ -7,7 +7,7 @@ venv/
 .env
 .eggs
 *.egg-info/
-dist/
+/dist/
 build/
 config/config.json
 config/cookies.json
