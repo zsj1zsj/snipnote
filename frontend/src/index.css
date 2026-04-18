@@ -546,3 +546,36 @@ body {
   margin: 1.5rem 0;
   border-color: #e5e7eb;
 }
+
+/* ── Mobile optimizations ── */
+@media (max-width: 639px) {
+  /* Prevent iOS zoom on input focus */
+  .input, .search-input, .textarea, .select, select, input, textarea {
+    font-size: 1rem;
+  }
+
+  /* Touch targets: ensure minimum 44px */
+  .icon-btn {
+    padding: 0.625rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .btn {
+    min-height: 2.75rem;
+  }
+
+  /* Page container: tighter padding */
+  .page-container {
+    padding: 1rem 0.75rem;
+  }
+
+  /* Disable image hover zoom on touch devices */
+  .prose-custom img:hover {
+    transform: none;
+    box-shadow: none;
+    z-index: auto;
+    position: static;
+    max-height: 180px;
+  }
+}

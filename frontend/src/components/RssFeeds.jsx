@@ -49,7 +49,6 @@ export default function RssFeeds() {
       const data = await api.getRssFeeds();
       setFeeds(data);
       setCache(CACHE_KEY, data);
-      // Extract unique categories
       const cats = [...new Set(data.map(f => f.category).filter(Boolean))].sort();
       setCategories(cats);
     } catch (err) {
@@ -152,7 +151,6 @@ export default function RssFeeds() {
     ? feeds.filter(f => f.category === filterCategory)
     : feeds;
 
-  // Group feeds by category
   const groupedFeeds = {};
   filteredFeeds.forEach(f => {
     const cat = f.category || '';
@@ -166,59 +164,61 @@ export default function RssFeeds() {
   });
 
   const renderFeed = (feed) => (
-    <div key={feed.id} className="card p-4 flex items-center gap-4">
-      <FeedFavicon siteUrl={feed.site_url} size={20} />
-      <div className="flex-1 min-w-0">
-        {editingId === feed.id ? (
-          <div className="space-y-2">
-            <input
-              type="text"
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-              className="input text-sm w-full"
-              placeholder="标题"
-              autoFocus
-            />
-            <div className="flex gap-2">
+    <div key={feed.id} className="card p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+      <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+        <FeedFavicon siteUrl={feed.site_url} size={20} />
+        <div className="flex-1 min-w-0">
+          {editingId === feed.id ? (
+            <div className="space-y-2">
               <input
                 type="text"
-                value={editCategory}
-                onChange={(e) => setEditCategory(e.target.value)}
-                className="input text-sm flex-1"
-                placeholder="分组（可选）"
-                list="category-list"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="input text-sm w-full"
+                placeholder="标题"
+                autoFocus
               />
-              <button onClick={() => saveEdit(feed.id)} className="text-green-500 hover:text-green-700 p-1">
-                <Check size={16} />
-              </button>
-              <button onClick={() => setEditingId(null)} className="text-gray-400 hover:text-gray-600 p-1">
-                <X size={16} />
-              </button>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={editCategory}
+                  onChange={(e) => setEditCategory(e.target.value)}
+                  className="input text-sm flex-1"
+                  placeholder="分组（可选）"
+                  list="category-list"
+                />
+                <button onClick={() => saveEdit(feed.id)} className="text-green-500 hover:text-green-700 p-2.5">
+                  <Check size={16} />
+                </button>
+                <button onClick={() => setEditingId(null)} className="text-gray-400 hover:text-gray-600 p-2.5">
+                  <X size={16} />
+                </button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <>
-            <div className="font-medium text-gray-800 truncate flex items-center gap-2">
-              {feed.title}
-              {feed.error_count > 0 && (
-                <span className="text-amber-500" title={`连续 ${feed.error_count} 次获取失败: ${feed.last_error}`}>
-                  <AlertTriangle size={14} />
-                </span>
-              )}
-            </div>
-            <div className="text-sm text-gray-400 truncate">{feed.url}</div>
-            <div className="text-xs text-gray-400 mt-1 flex items-center gap-2">
-              <span>{feed.total_articles} 篇文章 · {feed.unread_articles} 篇未读</span>
-              {feed.last_fetched_at && <span>· 最后刷新 {feed.last_fetched_at.split('T')[0]}</span>}
-              {feed.category && (
-                <span className="tag tag-blue text-xs">{feed.category}</span>
-              )}
-            </div>
-          </>
-        )}
+          ) : (
+            <>
+              <div className="font-medium text-gray-800 truncate flex items-center gap-2">
+                {feed.title}
+                {feed.error_count > 0 && (
+                  <span className="text-amber-500" title={`连续 ${feed.error_count} 次获取失败: ${feed.last_error}`}>
+                    <AlertTriangle size={14} />
+                  </span>
+                )}
+              </div>
+              <div className="text-sm text-gray-400 truncate">{feed.url}</div>
+              <div className="text-xs text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
+                <span>{feed.total_articles} 篇文章 · {feed.unread_articles} 篇未读</span>
+                {feed.last_fetched_at && <span>· 最后刷新 {feed.last_fetched_at.split('T')[0]}</span>}
+                {feed.category && (
+                  <span className="tag tag-blue text-xs">{feed.category}</span>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
       {editingId !== feed.id && (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-end sm:self-auto">
           <Link
             to={`/rss/articles?feed_id=${feed.id}`}
             className="btn btn-secondary text-sm px-3 py-1.5"
@@ -227,7 +227,7 @@ export default function RssFeeds() {
           </Link>
           <button
             onClick={() => startEdit(feed)}
-            className="text-gray-400 hover:text-gray-600 p-1.5"
+            className="text-gray-400 hover:text-gray-600 p-2.5"
             title="编辑"
           >
             <Edit3 size={16} />
@@ -237,7 +237,7 @@ export default function RssFeeds() {
               href={feed.site_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-gray-400 hover:text-gray-600 p-1.5"
+              className="text-gray-400 hover:text-gray-600 p-2.5"
               title="访问网站"
             >
               <ExternalLink size={16} />
@@ -245,7 +245,7 @@ export default function RssFeeds() {
           )}
           <button
             onClick={() => handleDelete(feed.id)}
-            className="text-gray-400 hover:text-red-500 p-1.5"
+            className="text-gray-400 hover:text-red-500 p-2.5"
             title="退订"
           >
             <Trash2 size={16} />
@@ -257,11 +257,12 @@ export default function RssFeeds() {
 
   return (
     <div className="page-container max-w-3xl">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <h1 className="page-title mb-0">RSS 订阅</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link to="/rss/articles" className="btn btn-secondary flex items-center gap-2">
-            文章列表
+            <span className="hidden sm:inline">文章列表</span>
+            <span className="sm:hidden text-sm">文章</span>
           </Link>
           <button
             onClick={handleExportOpml}
@@ -291,7 +292,7 @@ export default function RssFeeds() {
             className="btn btn-secondary flex items-center gap-2"
           >
             <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-            刷新全部
+            <span className="hidden sm:inline">刷新全部</span>
           </button>
         </div>
       </div>
@@ -307,7 +308,7 @@ export default function RssFeeds() {
         </div>
       )}
 
-      <div className="flex gap-3 mb-4">
+      <div className="flex flex-col gap-3 sm:flex-row mb-4">
         <input
           type="url"
           value={url}
@@ -322,7 +323,7 @@ export default function RssFeeds() {
           value={category}
           onChange={(e) => setCategory(e.target.value)}
           placeholder="分组（可选）"
-          className="input w-32"
+          className="input w-full sm:w-32"
           list="category-list"
         />
         <datalist id="category-list">
@@ -331,7 +332,7 @@ export default function RssFeeds() {
         <button
           onClick={handleSubscribe}
           disabled={loading || !url.trim()}
-          className="btn btn-primary flex items-center gap-2 px-6"
+          className="btn btn-primary flex items-center justify-center gap-2 w-full sm:w-auto sm:px-6"
         >
           {loading ? <Loader size={18} className="animate-spin" /> : <Plus size={18} />}
           订阅
@@ -342,7 +343,7 @@ export default function RssFeeds() {
         <div className="flex gap-1 mb-6 flex-wrap">
           <button
             onClick={() => setFilterCategory('')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
               filterCategory === '' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'
             }`}
           >
@@ -352,7 +353,7 @@ export default function RssFeeds() {
             <button
               key={cat}
               onClick={() => setFilterCategory(cat)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${
                 filterCategory === cat ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'
               }`}
             >

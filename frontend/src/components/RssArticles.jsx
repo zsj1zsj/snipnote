@@ -212,7 +212,7 @@ export default function RssArticles() {
         返回订阅
       </Link>
 
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
         <h1 className="page-title mb-0">文章列表</h1>
         <div className="flex gap-2">
           <button
@@ -222,7 +222,7 @@ export default function RssArticles() {
             title="全部标记已读"
           >
             <CheckCheck size={16} />
-            全部已读
+            <span className="hidden sm:inline">全部已读</span>
           </button>
           <button
             onClick={handleBatchImport}
@@ -231,16 +231,16 @@ export default function RssArticles() {
             title="批量导入"
           >
             {batchImporting ? <Loader size={16} className="animate-spin" /> : <Download size={16} />}
-            批量导入
+            <span className="hidden sm:inline">批量导入</span>
           </button>
         </div>
       </div>
 
-      <div className="flex gap-3 mb-4">
+      <div className="flex flex-col gap-3 sm:flex-row mb-4">
         <select
           value={feedId}
           onChange={(e) => setFeedId(e.target.value)}
-          className="input"
+          className="input w-full sm:w-auto"
         >
           <option value="">所有订阅源</option>
           {feeds.map((f) => (
@@ -288,7 +288,7 @@ export default function RssArticles() {
         />
       </div>
 
-      <div className="text-xs text-gray-400 mb-3">
+      <div className="hidden sm:block text-xs text-gray-400 mb-3">
         快捷键: <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">j</kbd>/<kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">k</kbd> 上下移动 · <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">m</kbd> 已读 · <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">s</kbd> 导入 · <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">Enter</kbd> 打开
       </div>
 

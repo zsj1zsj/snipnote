@@ -101,7 +101,7 @@ export default function Home() {
       )}
 
       {/* Quick actions */}
-      <div className="grid grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-8">
         <Link
           to="/add-link"
           className="card p-5 flex items-center gap-4 hover:shadow-md transition-shadow"

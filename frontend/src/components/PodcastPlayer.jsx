@@ -212,16 +212,16 @@ export default function PodcastPlayer() {
 
       {/* Episode header */}
       <div className="card p-6 mb-4">
-        <div className="flex gap-5">
+        <div className="flex flex-col items-center text-center gap-4 sm:flex-row sm:text-left sm:items-start sm:gap-5">
           {coverImage ? (
             <img
               src={coverImage}
               alt={episode.title}
-              className="w-24 h-24 rounded-xl object-cover flex-shrink-0"
+              className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-cover flex-shrink-0"
               onError={(e) => { e.target.style.display = 'none'; }}
             />
           ) : (
-            <div className="w-24 h-24 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
               <Headphones size={36} className="text-gray-400" />
             </div>
           )}

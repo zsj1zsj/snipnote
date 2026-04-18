@@ -131,19 +131,19 @@ export default function Review() {
           {showAnswer && (
             <div>
               <p className="text-center text-gray-500 mb-4">这次记忆的效果如何?</p>
-              <div className="grid grid-cols-6 gap-2">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
                 {qualityButtons.map((btn) => (
                   <button
                     key={btn.quality}
                     onClick={() => handleReview(btn.quality)}
-                    className={`${btn.color} text-white py-4 rounded-xl font-bold transition-all hover:scale-105`}
+                    className={`${btn.color} text-white py-4 rounded-xl font-bold transition-all hover:scale-105 min-h-[56px]`}
                   >
                     <div className="text-xl">{btn.label}</div>
                     <div className="text-xs opacity-80">{btn.desc}</div>
                   </button>
                 ))}
               </div>
-              <p className="text-center text-xs text-gray-400 mt-3">
+              <p className="hidden sm:block text-center text-xs text-gray-400 mt-3">
                 0=完全忘记 1=错误 2=困难 3=一般 4=良好 5=完美
               </p>
             </div>

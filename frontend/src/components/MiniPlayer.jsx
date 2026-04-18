@@ -47,21 +47,21 @@ export default function MiniPlayer() {
         />
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3">
-        {/* Cover + episode info — click to go back to player */}
+      <div className="max-w-5xl mx-auto px-2 sm:px-4 py-2 flex items-center gap-2 sm:gap-3">
+        {/* Cover + episode info */}
         <Link
           to={`/podcast/episode/${episode.id}`}
-          className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity"
+          className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity"
         >
           {coverImage ? (
             <img
               src={coverImage}
               alt={episode.title}
-              className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+              className="w-10 h-10 rounded-lg object-cover flex-shrink-0 hidden sm:block"
               onError={(e) => { e.target.style.display = 'none'; }}
             />
           ) : (
-            <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 hidden sm:flex">
               <Headphones size={18} className="text-gray-400" />
             </div>
           )}
@@ -75,36 +75,36 @@ export default function MiniPlayer() {
         </Link>
 
         {/* Controls */}
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
           <button
             onClick={() => skip(-15)}
-            className="p-2 text-gray-500 hover:text-gray-800 transition-colors"
+            className="p-2.5 text-gray-500 hover:text-gray-800 transition-colors"
             title="后退 15 秒"
           >
             <SkipBack size={18} />
           </button>
           <button
             onClick={togglePlay}
-            className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-900 text-white hover:bg-gray-700 transition-colors"
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-900 text-white hover:bg-gray-700 transition-colors"
           >
             {isPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
           </button>
           <button
             onClick={() => skip(30)}
-            className="p-2 text-gray-500 hover:text-gray-800 transition-colors"
+            className="p-2.5 text-gray-500 hover:text-gray-800 transition-colors"
             title="前进 30 秒"
           >
             <SkipForward size={18} />
           </button>
           {sleepLabel && (
-            <div className="flex items-center gap-1 text-xs text-indigo-500 font-medium px-1">
+            <div className="hidden sm:flex items-center gap-1 text-xs text-indigo-500 font-medium px-1">
               <Moon size={13} />
               {sleepLabel}
             </div>
           )}
           <button
             onClick={clearPlayer}
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors ml-1"
+            className="p-2.5 text-gray-400 hover:text-gray-600 transition-colors"
             title="关闭播放器"
           >
             <X size={16} />

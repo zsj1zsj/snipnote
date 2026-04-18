@@ -18,7 +18,7 @@ import PodcastEpisodes from './components/PodcastEpisodes';
 import PodcastPlayer from './components/PodcastPlayer';
 import PodcastShowDetail from './components/PodcastShowDetail';
 import MiniPlayer from './components/MiniPlayer';
-import { PlayerProvider } from './contexts/PlayerContext';
+import { PlayerProvider, usePlayer } from './contexts/PlayerContext';
 
 // Keyboard shortcuts component
 function KeyboardShortcuts() {
@@ -58,36 +58,43 @@ function KeyboardShortcuts() {
   return null;
 }
 
+function AppContent() {
+  const { episode } = usePlayer();
+
+  return (
+    <div className={`min-h-screen bg-gray-50 ${episode ? 'pb-16' : ''}`}>
+      <Navbar />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/highlights" element={<Highlights />} />
+        <Route path="/highlight/:id" element={<HighlightDetail />} />
+        <Route path="/review" element={<Review />} />
+        <Route path="/favorites" element={<Favorites />} />
+        <Route path="/tags" element={<TagManager />} />
+        <Route path="/daily" element={<DailyReport />} />
+        <Route path="/add" element={<AddHighlight />} />
+        <Route path="/add-link" element={<AddLink />} />
+        <Route path="/rss" element={<RssFeeds />} />
+        <Route path="/rss/articles" element={<RssArticles />} />
+        <Route path="/rss/article/:id" element={<RssArticleDetail />} />
+        <Route path="/podcast" element={<PodcastShows />} />
+        <Route path="/podcast/show/:id" element={<PodcastShowDetail />} />
+        <Route path="/podcast/episodes" element={<PodcastEpisodes />} />
+        <Route path="/podcast/episode/:id" element={<PodcastPlayer />} />
+      </Routes>
+      <MiniPlayer />
+    </div>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
       <PlayerProvider>
-      <KeyboardShortcuts />
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/highlights" element={<Highlights />} />
-          <Route path="/highlight/:id" element={<HighlightDetail />} />
-          <Route path="/review" element={<Review />} />
-          <Route path="/favorites" element={<Favorites />} />
-          <Route path="/tags" element={<TagManager />} />
-          <Route path="/daily" element={<DailyReport />} />
-          <Route path="/add" element={<AddHighlight />} />
-          <Route path="/add-link" element={<AddLink />} />
-          <Route path="/rss" element={<RssFeeds />} />
-          <Route path="/rss/articles" element={<RssArticles />} />
-          <Route path="/rss/article/:id" element={<RssArticleDetail />} />
-          <Route path="/podcast" element={<PodcastShows />} />
-          <Route path="/podcast/show/:id" element={<PodcastShowDetail />} />
-          <Route path="/podcast/episodes" element={<PodcastEpisodes />} />
-          <Route path="/podcast/episode/:id" element={<PodcastPlayer />} />
-        </Routes>
-        <MiniPlayer />
-      </div>
+        <KeyboardShortcuts />
+        <AppContent />
       </PlayerProvider>
     </BrowserRouter>
-
   );
 }
 

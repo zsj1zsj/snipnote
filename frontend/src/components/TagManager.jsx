@@ -74,60 +74,47 @@ export default function TagManager() {
           <div className="empty-state-description">为摘录添加标签后，它们会显示在这里</div>
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>标签</th>
-                <th className="text-center">使用次数</th>
-                <th className="text-right">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tags.map((tag) => (
-                <tr key={tag.name}>
-                  <td>
-                    {editingTag === tag.name ? (
-                      <input
-                        type="text"
-                        value={newName}
-                        onChange={(e) => setNewName(e.target.value)}
-                        onBlur={() => handleRename(tag.name)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleRename(tag.name)}
-                        className="input py-1.5 px-2 text-sm w-40"
-                        autoFocus
-                      />
-                    ) : (
-                      <span className="flex items-center gap-2 font-medium">
-                        <Tag size={16} className="text-gray-400" />
-                        {tag.name}
-                      </span>
-                    )}
-                  </td>
-                  <td className="text-center">
-                    <span className="tag tag-gray">{tag.count}</span>
-                  </td>
-                  <td className="text-right">
-                    <button
-                      onClick={() => {
-                        setEditingTag(tag.name);
-                        setNewName(tag.name);
-                      }}
-                      className="icon-btn text-gray-400 hover:text-gray-600"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(tag.name)}
-                      className="icon-btn text-gray-400 hover:text-red-500 ml-2"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="card overflow-hidden divide-y divide-gray-100">
+          {tags.map((tag) => (
+            <div key={tag.name} className="p-4 flex items-center justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                {editingTag === tag.name ? (
+                  <input
+                    type="text"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    onBlur={() => handleRename(tag.name)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleRename(tag.name)}
+                    className="input py-1.5 px-2 text-sm w-full"
+                    autoFocus
+                  />
+                ) : (
+                  <span className="flex items-center gap-2 font-medium">
+                    <Tag size={16} className="text-gray-400 flex-shrink-0" />
+                    <span className="truncate">{tag.name}</span>
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="tag tag-gray">{tag.count}</span>
+                <button
+                  onClick={() => {
+                    setEditingTag(tag.name);
+                    setNewName(tag.name);
+                  }}
+                  className="icon-btn text-gray-400 hover:text-gray-600 p-2.5"
+                >
+                  <Edit2 size={16} />
+                </button>
+                <button
+                  onClick={() => handleDelete(tag.name)}
+                  className="icon-btn text-gray-400 hover:text-red-500 p-2.5"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

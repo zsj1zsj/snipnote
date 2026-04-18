@@ -145,11 +145,12 @@ export default function PodcastShows() {
 
   return (
     <div className="page-container max-w-3xl">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <h1 className="page-title mb-0">Podcast 订阅</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link to="/podcast/episodes" className="btn btn-secondary flex items-center gap-2">
-            单集列表
+            <span className="hidden sm:inline">单集列表</span>
+            <span className="sm:hidden text-sm">单集</span>
           </Link>
           <button
             onClick={handleRefreshAll}
@@ -157,11 +158,11 @@ export default function PodcastShows() {
             className="btn btn-secondary flex items-center gap-2"
           >
             <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-            刷新全部
+            <span className="hidden sm:inline">刷新全部</span>
           </button>
           <label className="btn btn-secondary flex items-center gap-2 cursor-pointer">
             <Upload size={16} />
-            导入 OPML
+            <span className="hidden sm:inline">导入 OPML</span>
             <input
               ref={fileInputRef}
               type="file"
@@ -176,7 +177,7 @@ export default function PodcastShows() {
               className="btn btn-secondary flex items-center gap-2"
             >
               <Download size={16} />
-              导出 OPML
+              <span className="hidden sm:inline">导出 OPML</span>
             </button>
           )}
         </div>
@@ -244,7 +245,7 @@ export default function PodcastShows() {
         </div>
       )}
 
-      <div className="flex gap-3 mb-8">
+      <div className="flex flex-col gap-3 sm:flex-row mb-8">
         <input
           type="url"
           value={url}
@@ -256,7 +257,7 @@ export default function PodcastShows() {
         <button
           onClick={handleSubscribe}
           disabled={loading || !url.trim()}
-          className="btn btn-primary flex items-center gap-2 px-6"
+          className="btn btn-primary flex items-center justify-center gap-2 w-full sm:w-auto sm:px-6"
         >
           {loading ? <Loader size={18} className="animate-spin" /> : <Plus size={18} />}
           订阅
@@ -271,30 +272,32 @@ export default function PodcastShows() {
       ) : (
         <div className="space-y-3">
           {shows.map((show) => (
-            <div key={show.id} className="card p-4 flex items-center gap-4">
-              {show.image_url ? (
-                <img
-                  src={show.image_url}
-                  alt={show.title}
-                  className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
-              ) : (
-                <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                  <Headphones size={24} className="text-gray-400" />
-                </div>
-              )}
-              <Link to={`/podcast/show/${show.id}`} className="flex-1 min-w-0 hover:opacity-75">
-                <div className="font-medium text-gray-800 truncate">{show.title}</div>
-                {show.author && (
-                  <div className="text-sm text-gray-500 truncate">{show.author}</div>
+            <div key={show.id} className="card p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                {show.image_url ? (
+                  <img
+                    src={show.image_url}
+                    alt={show.title}
+                    className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg object-cover flex-shrink-0"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                ) : (
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <Headphones size={24} className="text-gray-400" />
+                  </div>
                 )}
-                <div className="text-xs text-gray-400 mt-1">
-                  {show.total} 集 · {show.unlistened} 集未听
-                  {show.last_fetched_at && ` · 最后刷新 ${show.last_fetched_at.split('T')[0]}`}
-                </div>
-              </Link>
-              <div className="flex items-center gap-2">
+                <Link to={`/podcast/show/${show.id}`} className="flex-1 min-w-0 hover:opacity-75">
+                  <div className="font-medium text-gray-800 truncate">{show.title}</div>
+                  {show.author && (
+                    <div className="text-sm text-gray-500 truncate">{show.author}</div>
+                  )}
+                  <div className="text-xs text-gray-400 mt-1">
+                    {show.total} 集 · {show.unlistened} 集未听
+                    {show.last_fetched_at && ` · 最后刷新 ${show.last_fetched_at.split('T')[0]}`}
+                  </div>
+                </Link>
+              </div>
+              <div className="flex items-center gap-2 self-end sm:self-auto">
                 <Link
                   to={`/podcast/episodes?show_id=${show.id}`}
                   className="btn btn-secondary text-sm px-3 py-1.5"
@@ -306,7 +309,7 @@ export default function PodcastShows() {
                     href={show.site_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-gray-400 hover:text-gray-600 p-1.5"
+                    className="text-gray-400 hover:text-gray-600 p-2.5"
                     title="访问网站"
                   >
                     <ExternalLink size={16} />
@@ -314,7 +317,7 @@ export default function PodcastShows() {
                 )}
                 <button
                   onClick={() => handleDelete(show.id)}
-                  className="text-gray-400 hover:text-red-500 p-1.5"
+                  className="text-gray-400 hover:text-red-500 p-2.5"
                   title="退订"
                 >
                   <Trash2 size={16} />
