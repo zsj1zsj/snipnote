@@ -332,58 +332,41 @@ export default function HighlightDetail() {
     });
   };
 
+  const isTouchDevice = typeof window !== 'undefined' && 'ontouchstart' in window;
+
   // Show menu after selection gesture ends (mouseup/touchend — not during drag)
   useEffect(() => {
-    const isTouchDevice = 'ontouchstart' in window;
-
-    // Dismiss native ActionMode by collapsing and re-extending the selection.
-    // This removes the native toolbar while keeping the selected text intact.
-    const dismissNativeMenu = (selection, range) => {
-      try {
-        const endContainer = range.endContainer;
-        const endOffset = range.endOffset;
-        // Collapse to start, then re-extend to end — triggers a new selection
-        // event which closes the Android ActionMode / iOS callout.
-        selection.collapseToStart();
-        selection.extend(endContainer, endOffset);
-      } catch (_) {
-        // If extend fails (rare), restore range directly
-        selection.removeAllRanges();
-        selection.addRange(range);
-      }
-    };
-
-    const positionMenu = (selection) => {
-      const text = selection?.toString().trim() || '';
-      if (text && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        if (contentRef.current && contentRef.current.contains(range.startContainer)) {
-          setSelectedText(text);
-          const rect = range.getBoundingClientRect();
-          const menuWidth = 252;
-          const menuHeight = 44;
-          const gap = 8;
-          let x = rect.left + rect.width / 2 - menuWidth / 2;
-          let y = rect.bottom + gap;
-          x = Math.max(8, Math.min(x, window.innerWidth - menuWidth - 8));
-          if (y + menuHeight > window.innerHeight - 8) {
-            y = rect.top - menuHeight - gap;
-          }
-          setMenuPos({ x, y });
-
-          // On touch devices, dismiss native menu after positioning ours
-          if (isTouchDevice) {
-            setTimeout(() => dismissNativeMenu(selection, range), 50);
-          }
-          return;
-        }
-      }
-      setMenuPos(null);
-      setSelectedText('');
-    };
-
     const showMenuIfSelected = () => {
-      setTimeout(() => positionMenu(window.getSelection()), 30);
+      setTimeout(() => {
+        const selection = window.getSelection();
+        const text = selection?.toString().trim() || '';
+        if (text && selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          if (contentRef.current && contentRef.current.contains(range.startContainer)) {
+            setSelectedText(text);
+            if (!isTouchDevice) {
+              // Desktop: floating menu near selection
+              const rect = range.getBoundingClientRect();
+              const menuWidth = 252;
+              const menuHeight = 44;
+              const gap = 8;
+              let x = rect.left + rect.width / 2 - menuWidth / 2;
+              let y = rect.bottom + gap;
+              x = Math.max(8, Math.min(x, window.innerWidth - menuWidth - 8));
+              if (y + menuHeight > window.innerHeight - 8) {
+                y = rect.top - menuHeight - gap;
+              }
+              setMenuPos({ x, y });
+            } else {
+              // Mobile: bottom bar, no position needed
+              setMenuPos({ x: 0, y: 0 });
+            }
+            return;
+          }
+        }
+        setMenuPos(null);
+        setSelectedText('');
+      }, 30);
     };
 
     document.addEventListener('mouseup', showMenuIfSelected);
@@ -392,7 +375,7 @@ export default function HighlightDetail() {
       document.removeEventListener('mouseup', showMenuIfSelected);
       document.removeEventListener('touchend', showMenuIfSelected);
     };
-  }, []);
+  }, [isTouchDevice]);
 
   // Close menu on outside press — only mounted while menu is visible,
   // so there are zero state updates during the selection gesture itself.
@@ -781,7 +764,7 @@ export default function HighlightDetail() {
         )}
       </div>
 
-      {menuPos && (
+      {menuPos && !isTouchDevice && (
         <div
           ref={menuRef}
           className="fixed z-50 flex items-center bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden"
@@ -848,6 +831,58 @@ export default function HighlightDetail() {
             <Plus size={14} />
             笔记
           </button>
+        </div>
+      )}
+
+      {/* Mobile: fixed bottom action bar */}
+      {menuPos && isTouchDevice && (
+        <div
+          ref={menuRef}
+          className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.1)] safe-area-bottom"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        >
+          <div className="flex items-center justify-around max-w-md mx-auto">
+            <button
+              onTouchEnd={e => {
+                e.preventDefault();
+                handleAddHighlightOnly(e);
+              }}
+              className="flex-1 flex flex-col items-center gap-1 py-3 text-yellow-600 active:bg-yellow-50 transition-colors"
+            >
+              <Highlighter size={18} />
+              <span className="text-xs font-medium">高亮</span>
+            </button>
+            <div className="w-px h-8 bg-gray-200" />
+            <button
+              onTouchEnd={e => {
+                e.preventDefault();
+                setMenuPos(null);
+                setTimeout(() => {
+                  const input = document.getElementById('note-input');
+                  if (input) {
+                    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    input.focus();
+                  }
+                }, 50);
+              }}
+              className="flex-1 flex flex-col items-center gap-1 py-3 text-blue-600 active:bg-blue-50 transition-colors"
+            >
+              <Plus size={18} />
+              <span className="text-xs font-medium">笔记</span>
+            </button>
+            <div className="w-px h-8 bg-gray-200" />
+            <button
+              onTouchEnd={e => {
+                e.preventDefault();
+                window.getSelection()?.removeAllRanges();
+                setMenuPos(null);
+                setSelectedText('');
+              }}
+              className="flex-1 flex flex-col items-center gap-1 py-3 text-gray-400 active:bg-gray-50 transition-colors"
+            >
+              <span className="text-xs font-medium">取消</span>
+            </button>
+          </div>
         </div>
       )}
     </div>
