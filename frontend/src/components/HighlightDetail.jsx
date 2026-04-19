@@ -158,6 +158,15 @@ export default function HighlightDetail() {
     loadHighlight();
   }, [id]);
 
+  // Auto-mark as read when entering detail page
+  useEffect(() => {
+    if (data?.highlight && !data.highlight.is_read) {
+      api.toggleRead(id).then(updated => {
+        setData(prev => prev ? { ...prev, highlight: updated } : prev);
+      }).catch(() => {});
+    }
+  }, [data?.highlight?.id]);
+
   const handleToggleFavorite = (e) => {
     if (e) {
       e.preventDefault();
