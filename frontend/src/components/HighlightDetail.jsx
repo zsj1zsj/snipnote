@@ -334,31 +334,56 @@ export default function HighlightDetail() {
 
   // Show menu after selection gesture ends (mouseup/touchend — not during drag)
   useEffect(() => {
-    const showMenuIfSelected = () => {
-      setTimeout(() => {
-        const selection = window.getSelection();
-        const text = selection?.toString().trim() || '';
-        if (text && selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-          if (contentRef.current && contentRef.current.contains(range.startContainer)) {
-            setSelectedText(text);
-            const rect = range.getBoundingClientRect();
-            const menuWidth = 252;
-            const menuHeight = 44;
-            const gap = 8;
-            let x = rect.left + rect.width / 2 - menuWidth / 2;
-            let y = rect.bottom + gap;
-            x = Math.max(8, Math.min(x, window.innerWidth - menuWidth - 8));
-            if (y + menuHeight > window.innerHeight - 8) {
-              y = rect.top - menuHeight - gap;
-            }
-            setMenuPos({ x, y });
-            return;
+    const isTouchDevice = 'ontouchstart' in window;
+
+    // Dismiss native ActionMode by collapsing and re-extending the selection.
+    // This removes the native toolbar while keeping the selected text intact.
+    const dismissNativeMenu = (selection, range) => {
+      try {
+        const endContainer = range.endContainer;
+        const endOffset = range.endOffset;
+        // Collapse to start, then re-extend to end — triggers a new selection
+        // event which closes the Android ActionMode / iOS callout.
+        selection.collapseToStart();
+        selection.extend(endContainer, endOffset);
+      } catch (_) {
+        // If extend fails (rare), restore range directly
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    };
+
+    const positionMenu = (selection) => {
+      const text = selection?.toString().trim() || '';
+      if (text && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        if (contentRef.current && contentRef.current.contains(range.startContainer)) {
+          setSelectedText(text);
+          const rect = range.getBoundingClientRect();
+          const menuWidth = 252;
+          const menuHeight = 44;
+          const gap = 8;
+          let x = rect.left + rect.width / 2 - menuWidth / 2;
+          let y = rect.bottom + gap;
+          x = Math.max(8, Math.min(x, window.innerWidth - menuWidth - 8));
+          if (y + menuHeight > window.innerHeight - 8) {
+            y = rect.top - menuHeight - gap;
           }
+          setMenuPos({ x, y });
+
+          // On touch devices, dismiss native menu after positioning ours
+          if (isTouchDevice) {
+            setTimeout(() => dismissNativeMenu(selection, range), 50);
+          }
+          return;
         }
-        setMenuPos(null);
-        setSelectedText('');
-      }, 30);
+      }
+      setMenuPos(null);
+      setSelectedText('');
+    };
+
+    const showMenuIfSelected = () => {
+      setTimeout(() => positionMenu(window.getSelection()), 30);
     };
 
     document.addEventListener('mouseup', showMenuIfSelected);
