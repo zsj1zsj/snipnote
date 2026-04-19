@@ -94,6 +94,7 @@ body {
 /* Highlight card */
 .highlight-card {
   padding: 1.25rem;
+  overflow: hidden;
 }
 
 .highlight-card .text-content {
@@ -549,6 +550,10 @@ body {
 
 /* ── Mobile optimizations ── */
 @media (max-width: 639px) {
+  /* Prevent horizontal overflow */
+  html, body {
+    overflow-x: hidden;
+  }
   /* Prevent iOS zoom on input focus */
   .input, .search-input, .textarea, .select, select, input, textarea {
     font-size: 1rem;

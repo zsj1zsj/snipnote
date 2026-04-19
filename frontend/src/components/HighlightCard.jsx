@@ -78,81 +78,80 @@ export default function HighlightCard({ highlight, onUpdate, onDelete }) {
       to={`/highlight/${highlight.id}`}
       className="highlight-card block group"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          {/* Source and meta */}
-          <div className="flex items-center gap-2 text-sm text-gray-400 mb-3">
-            {highlight.source ? (
-              <>
-                <BookOpen size={14} className="flex-shrink-0" />
-                <span className="truncate font-medium">{highlight.source}</span>
-                {highlight.author && (
-                  <span className="text-gray-400 truncate">- {highlight.author}</span>
-                )}
-              </>
-            ) : null}
-            {highlight.next_review && highlight.next_review <= new Date().toISOString().split('T')[0] && (
-              <span className="tag tag-red text-xs ml-auto">
-                待复习
-              </span>
-            )}
-            {highlight.is_read === 1 && (
-              <span className="tag tag-green text-xs">
-                已读
-              </span>
-            )}
-          </div>
-
-          {/* Text content - summary or first 300 chars */}
-          <div className="text-content mb-4">
-            {displayContent}
-          </div>
-
-          {/* Tags */}
-          {tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {tags.map((tag) => (
-                <span key={tag} className="tag tag-gray">
-                  #{tag}
-                </span>
-              ))}
-            </div>
+      <div className="min-w-0">
+        {/* Source and meta */}
+        <div className="flex items-center gap-2 text-sm text-gray-400 mb-3 min-w-0">
+          {highlight.source ? (
+            <>
+              <BookOpen size={14} className="flex-shrink-0" />
+              <span className="truncate font-medium">{highlight.source}</span>
+              {highlight.author && (
+                <span className="text-gray-400 truncate hidden sm:inline">- {highlight.author}</span>
+              )}
+            </>
+          ) : null}
+          {highlight.next_review && highlight.next_review <= new Date().toISOString().split('T')[0] && (
+            <span className="tag tag-red text-xs ml-auto flex-shrink-0">
+              待复习
+            </span>
+          )}
+          {highlight.is_read === 1 && (
+            <span className="tag tag-green text-xs flex-shrink-0">
+              已读
+            </span>
           )}
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-col gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={handleToggleFavorite}
-            disabled={loading}
-            className={`star-btn ${highlight.favorite ? 'active' : ''}`}
-            title={highlight.favorite ? '取消收藏' : '收藏'}
-          >
-            <Star size={18} fill={highlight.favorite ? 'currentColor' : 'none'} />
-          </button>
-          <button
-            onClick={handleToggleRead}
-            disabled={loading}
-            className={`read-btn ${highlight.is_read ? 'active' : ''}`}
-            title={highlight.is_read ? '标记未读' : '标记已读'}
-          >
-            <Check size={18} />
-          </button>
-          <button
-            onClick={e => { e.preventDefault(); e.stopPropagation(); exportHighlightAsMarkdown(highlight); }}
-            className="read-btn"
-            title="导出 Markdown"
-          >
-            <Download size={18} />
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={loading}
-            className="delete-btn"
-            title="删除"
-          >
-            <Trash2 size={18} />
-          </button>
+        {/* Text content - summary or first 300 chars */}
+        <div className="text-content mb-4">
+          {displayContent}
+        </div>
+
+        {/* Tags + Actions */}
+        <div className="flex items-center justify-between gap-2">
+          {/* Tags */}
+          <div className="flex flex-wrap gap-1.5 min-w-0">
+            {tags.map((tag) => (
+              <span key={tag} className="tag tag-gray">
+                #{tag}
+              </span>
+            ))}
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-0.5 flex-shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={handleToggleFavorite}
+              disabled={loading}
+              className={`star-btn ${highlight.favorite ? 'active' : ''}`}
+              title={highlight.favorite ? '取消收藏' : '收藏'}
+            >
+              <Star size={18} fill={highlight.favorite ? 'currentColor' : 'none'} />
+            </button>
+            <button
+              onClick={handleToggleRead}
+              disabled={loading}
+              className={`read-btn ${highlight.is_read ? 'active' : ''}`}
+              title={highlight.is_read ? '标记未读' : '标记已读'}
+            >
+              <Check size={18} />
+            </button>
+            <button
+              onClick={e => { e.preventDefault(); e.stopPropagation(); exportHighlightAsMarkdown(highlight); }}
+              className="read-btn"
+              title="导出 Markdown"
+            >
+              <Download size={18} />
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={loading}
+              className="delete-btn"
+              title="删除"
+            >
+              <Trash2 size={18} />
+            </button>
+          </div>
         </div>
       </div>
     </Link>
